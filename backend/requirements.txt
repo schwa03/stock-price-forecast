@@ -26,7 +26,9 @@ feedparser==6.0.12
 
 # --- データ処理 / 株価 ---
 pandas==3.0.2
-numpy==2.4.4
+# pandas-ta(内部でnumbaを使用)がnumpy<2.3を要求するため、上限を明示的に指定
+# （ローカル開発venvではnumpy2.4系が入っているが、その組み合わせだとpandas-taと衝突する）
+numpy>=2.2.6,<2.3
 yfinance==1.2.1
 pandas-ta>=0.3.14b0
 
