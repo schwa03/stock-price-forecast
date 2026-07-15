@@ -82,7 +82,7 @@ def fetch_recent_news(keyword: str) -> List[Dict]:
 def extract_news_facts(code: str, name_ja: str, news_list: List[Dict]) -> List[Dict]:
     """ニュースからファクト（事実）のみをAIで抽出する（点数評価はしない）"""
     if not get_keys():
-        return [{"fact": "AI連動オフ", "category": "マクロ", "title": n["title"]} for n in news_list]
+        return [{"fact": "AI連動オフ（APIキー未設定）", "category": "エラー", "title": "AI連動オフ"}]
 
     prompt = f"""
     あなたはデータ抽出の専門AIです。
@@ -110,16 +110,17 @@ def extract_news_facts(code: str, name_ja: str, news_list: List[Dict]) -> List[D
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-            fact_msg = "API利用制限超過（全APIキーの無料枠枯渇）"
+            fact_msg = "API利用制限超過（無料枠のクォータ上限に達しました。しばらくすると再試行されます）"
         else:
-            fact_msg = "AI推論エラー"
+            fact_msg = "AI推論エラーが発生しました"
         print(f"[AI_SERVICE] News Extract Error: {error_msg}")
-        return [{"fact": fact_msg, "category": "エラー", "title": n["title"]} for n in news_list]
+        # ニュース件数分の重複したエラーカードを出さないよう、1件のみ返す
+        return [{"fact": fact_msg, "category": "エラー", "title": "AI分析エラー"}]
 
 def extract_docs_facts(code: str, name_ja: str) -> List[Dict]:
     """開示情報等から長期ファクトを抽出する（モックジェネレーター）"""
     if not get_keys():
-        return [{"fact": "AI連動オフ", "title": "開示資料分析", "type": "EDINET"}]
+        return [{"fact": "AI連動オフ（APIキー未設定）", "title": "AI連動オフ", "type": "エラー"}]
 
     prompt = f"""
     あなたはデータ抽出の専門AIです。
@@ -141,8 +142,8 @@ def extract_docs_facts(code: str, name_ja: str) -> List[Dict]:
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
-            fact_msg = "API利用制限超過（全APIキーの無料枠枯渇）"
+            fact_msg = "API利用制限超過（無料枠のクォータ上限に達しました。しばらくすると再試行されます）"
         else:
-            fact_msg = "AI推論エラー"
+            fact_msg = "AI推論エラーが発生しました"
         print(f"[AI_SERVICE] Docs Extract Error: {error_msg}")
-        return [{"fact": fact_msg, "title": "開示資料等", "type": "その他"}]
+        return [{"fact": fact_msg, "title": "AI分析エラー", "type": "エラー"}]

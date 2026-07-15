@@ -10,6 +10,11 @@ def _evaluate_fact(category: str, fact_text: str) -> dict:
     抽出された事実から、スコア影響度（effect）、判断理由（reason）、ポジネガクラス（cls）を算出。
     ※本番環境では、ここに過去データによる機械学習モデル（XGBoost/LightGBM）を組み込みます。
     """
+    # Gemini呼び出し自体が失敗した場合（クォータ超過等）の「事実」は、実際の分析結果ではないため、
+    # 通常のキーワード/ランダム評価にかけず、意味のない点数がついて見えないようにする
+    if category == "エラー":
+        return {"effect": "0", "reason": "AI分析が利用できません", "cls": "neu"}
+
     # 簡易ルールベース ＋ ランダム（モック）のハイブリッド
     positive_keywords = ["上方修正", "増益", "買収", "自社株買い", "黒字", "提携", "好調", "新製品", "配当", "増配"]
     negative_keywords = ["下方修正", "減益", "赤字", "不祥事", "訴訟", "遅延", "延期", "売却", "解約", "悪化"]
@@ -68,15 +73,29 @@ def score_news_facts(facts_list: List[Dict], original_news: List[Dict]) -> List[
     """
     scored_news = []
     for i, fact_item in enumerate(facts_list):
+        if fact_item.get("category") == "エラー":
+            # AI分析自体が失敗した状態。フロント側で「システムの状態」として
+            # 通常の分析結果と区別して表示できるよう source を "System" にする
+            evaluation = _evaluate_fact("エラー", "")
+            scored_news.append({
+                "title": "AIによるニュース分析が利用できません",
+                "source": "System",
+                "url": "#",
+                "effect": evaluation["effect"],
+                "reason": fact_item.get("fact", "しばらく経ってから再度ご確認ください"),
+                "cls": evaluation["cls"],
+            })
+            continue
+
         evaluation = _evaluate_fact(fact_item.get("category", "その他"), fact_item.get("fact", ""))
-        
+
         # 元のニュースURLとマージ
         url = "#"
         source = "News"
         if original_news and i < len(original_news):
              url = original_news[i].get("url", "#")
              source = original_news[i].get("source", "News")
-             
+
         scored_news.append({
             "title": fact_item.get("title", fact_item.get("fact", "ニュース要素")),
             "source": source,
@@ -93,6 +112,18 @@ def score_docs_facts(facts_list: List[Dict]) -> List[Dict]:
     """
     scored_docs = []
     for fact_item in facts_list:
+        if fact_item.get("type") == "エラー" or fact_item.get("category") == "エラー":
+            evaluation = _evaluate_fact("エラー", "")
+            scored_docs.append({
+                "title": "AIによる開示情報分析が利用できません",
+                "type": "System",
+                "url": "#",
+                "effect": evaluation["effect"],
+                "reason": fact_item.get("fact", "しばらく経ってから再度ご確認ください"),
+                "cls": evaluation["cls"],
+            })
+            continue
+
         evaluation = _evaluate_fact(fact_item.get("type", "マクロ"), fact_item.get("fact", ""))
         scored_docs.append({
             "title": fact_item.get("title", "開示資料分析"),

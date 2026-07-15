@@ -184,14 +184,27 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   // Data fetching logic（現在の状態を再取得するのみ。状態のリセットは行わない）
-  const fetchData = useCallback(() => {
+  // Promise.allでまとめて待てるようにし、「最新化」ボタンの読み込み中表示に使う
+  const fetchData = useCallback(async () => {
     if(!current) return;
-    axios.get(`${API_BASE}/api/stocks/${current.code}/summary`).then(res => setSummary(res.data)).catch(console.error);
-    axios.get(`${API_BASE}/api/stocks/${current.code}/backtest`).then(res => setBacktest(res.data)).catch(console.error);
-    axios.get(`${API_BASE}/api/stocks/${current.code}/chart`).then(res => setChartData(res.data)).catch(console.error);
-    axios.get(`${API_BASE}/api/stocks/${current.code}/news`).then(res => setNewsList(res.data)).catch(console.error);
-    axios.get(`${API_BASE}/api/stocks/${current.code}/docs`).then(res => setDocList(res.data)).catch(console.error);
+    await Promise.all([
+      axios.get(`${API_BASE}/api/stocks/${current.code}/summary`).then(res => setSummary(res.data)).catch(console.error),
+      axios.get(`${API_BASE}/api/stocks/${current.code}/backtest`).then(res => setBacktest(res.data)).catch(console.error),
+      axios.get(`${API_BASE}/api/stocks/${current.code}/chart`).then(res => setChartData(res.data)).catch(console.error),
+      axios.get(`${API_BASE}/api/stocks/${current.code}/news`).then(res => setNewsList(res.data)).catch(console.error),
+      axios.get(`${API_BASE}/api/stocks/${current.code}/docs`).then(res => setDocList(res.data)).catch(console.error),
+    ]);
   }, [current]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchData();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // 銘柄切り替え時は、選択とリセットをイベントハンドラ側で同時に行う
   // （Effect内で直接setStateを呼ぶとカスケードレンダリングになるため避ける）
@@ -315,9 +328,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                   )}
                   {summary?.final_signal === 'analyzing...' && <div style={{display:'flex', alignItems:'center', color:'var(--tm)', fontSize:'var(--sm)'}}>AI分析中...</div>}
                   {summary?.final_signal === 'error' && <div style={{display:'flex', alignItems:'center', color:'var(--er, #d64545)', fontSize:'var(--sm)'}}>分析に失敗しました（自動的に再試行されます）</div>}
-                  <button onClick={fetchData} className="btn" style={{display: 'flex', gap: '8px', alignItems:'center'}}>
-                    <RefreshCw size={18} />
-                    最新化
+                  <button onClick={handleManualRefresh} disabled={isRefreshing} className="btn" style={{display: 'flex', gap: '8px', alignItems:'center', opacity: isRefreshing ? 0.7 : 1}}>
+                    <RefreshCw size={18} className={isRefreshing ? 'spin' : ''} />
+                    {isRefreshing ? '更新中...' : '最新化'}
                   </button>
                 </div>
               </section>
@@ -402,6 +415,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                   </div>
                   <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
                     {newsList.map((n, i) => (
+                      n.source === 'System' ? (
+                        <div key={i} style={{ padding: 'var(--s4)', border: '1px dashed var(--dv)', borderRadius: 'var(--r1)', color: 'var(--tm)' }}>
+                          <div style={{ fontSize: 'var(--sm)', fontWeight: 700 }}>{n.title}</div>
+                          <div style={{ fontSize: 'var(--xs)', marginTop: '.22rem' }}>{n.reason}</div>
+                        </div>
+                      ) : (
                       <div key={i} style={{ padding: 'var(--s4)', border: '1px solid var(--dv)', borderRadius: 'var(--r1)', background: 'var(--sfo)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--s3)', alignItems: 'flex-start' }}>
                           <div>
@@ -416,6 +435,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                           <span className="pill p-gd">短期寄与</span>
                         </div>
                       </div>
+                      )
                     ))}
                   </div>
                 </article>
@@ -427,6 +447,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                   </div>
                   <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
                     {docList.map((d, i) => (
+                      d.type === 'System' ? (
+                        <div key={i} style={{ padding: 'var(--s4)', border: '1px dashed var(--dv)', borderRadius: 'var(--r1)', color: 'var(--tm)' }}>
+                          <div style={{ fontSize: 'var(--sm)', fontWeight: 700 }}>{d.title}</div>
+                          <div style={{ fontSize: 'var(--xs)', marginTop: '.22rem' }}>{d.reason}</div>
+                        </div>
+                      ) : (
                       <div key={i} style={{ padding: 'var(--s4)', border: '1px solid var(--dv)', borderRadius: 'var(--r1)', background: 'var(--sfo)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--s3)', alignItems: 'flex-start' }}>
                           <div>
@@ -441,6 +467,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                           <span className="pill p-ok">長期寄与</span>
                         </div>
                       </div>
+                      )
                     ))}
                   </div>
                 </article>

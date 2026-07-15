@@ -117,6 +117,17 @@ a:hover {
   }
 }
 
+/* 「最新化」ボタンの読み込み中表示 */
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
 /* Utilities */
 .btn {
   padding: .6rem .9rem;
