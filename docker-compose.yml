@@ -37,6 +37,11 @@ services:
       ENV: production
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
     # 受信ポートは公開しない（Caddyコンテナがリバースプロキシとして前段に立つ）
+    volumes:
+      # train_model.pyが生成する学習済みモデルをVM本体に永続化する。
+      # `docker compose run --rm backend ...` はコマンド終了後にコンテナごと
+      # 削除される（--rm）ため、これがないと学習結果が毎回消えてしまう。
+      - ./backend/model:/app/model
 
   caddy:
     image: caddy:2-alpine
