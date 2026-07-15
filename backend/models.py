@@ -35,6 +35,9 @@ class SignalSummaryRow(Base):
     # フェーズ1では現行と同じ "YYYY-MM-DD HH:MM:SS" 文字列のまま保持する。
     # DateTime型への変更はフェーズ2以降、フロント側の表示ロジックと合わせて検討する。
     updated_at: Mapped[str] = mapped_column(String(32), default="")
+    # コアスコア（テクニカル+ML）とニュース/開示分析（Gemini）は別々の巡回ループで
+    # 更新するため、鮮度を別々に追跡する（REQUIREMENTS_v2.md 2.2/2.3参照）
+    news_updated_at: Mapped[str] = mapped_column(String(32), default="")
 
 
 class NewsItemRow(Base):

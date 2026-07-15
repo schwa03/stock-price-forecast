@@ -1,8 +1,13 @@
 # Python
 backend/venv/
+backend/venv311/
 backend/__pycache__/
 **/__pycache__/
 *.pyc
+
+# 学習済みMLモデル: train_model.py で生成される派生物なのでコミットしない。
+# 未学習時はpredictor.pyが簡易ヒューリスティックにフォールバックする（REQUIREMENTS_v2.md 2.2参照）
+backend/model/
 
 # 環境変数・秘密情報
 .env

@@ -26,7 +26,9 @@ import ai_service
 import auth
 import fetch_nikkei225
 import internal_ai
+import predictor
 from db import get_session, session_scope
+from features import latest_feature_vector
 from models import ChartDataRow, DocItemRow, NewsItemRow, SignalSummaryRow, StockMasterRow
 
 
@@ -86,8 +88,10 @@ class ChartResponse(BaseModel):
 # 銘柄マスターは高速な一覧表示のためインメモリにも保持するが、
 # 正本はDB（stock_master）。再起動時はDBから読み直す（REQUIREMENTS_v2.md 5.5）。
 MASTER_STOCKS: List[StockMaster] = []
-# 「処理中」フラグは一時的な状態でしかないため、これだけは引き続きインメモリで良い。
-_PROCESSING: set = set()
+# コアスコア（テクニカル+ML）とニュース/開示分析（Gemini）は完全に別の巡回ループで
+# 動くため、「処理中」フラグも別々に持つ（REQUIREMENTS_v2.md 2.2/2.3参照）。
+_CORE_PROCESSING: set = set()
+_NEWS_PROCESSING: set = set()
 
 
 # --------- Master data (DB-backed) ---------
@@ -145,72 +149,82 @@ async def load_master_data():
 
 
 # --------- Background processing (DB-backed) ---------
-async def process_stock_background(code: str, name_ja: str):
-    """yfinance, News, Docs を処理し、結果をDBに保存する。"""
+def _jst_now_str() -> str:
+    return (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_jst(value: str) -> float:
+    """時刻文字列をUnixタイムスタンプ化する。空・パース不能なら0.0（＝最優先扱い）を返す。"""
+    if not value or value in ("推論中", "analyzing..."):
+        return 0.0
     try:
-        short_score = 50
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S").timestamp()
+    except Exception:
+        return 0.0
+
+
+async def _mark_stock_as_errored(code: str):
+    """コアスコア処理全体が失敗した銘柄を「error」状態でDBに記録する。
+
+    これをしないと、失敗した銘柄はDBに一切書き込まれず、フロント側は
+    「analyzing...」のプレースホルダーを永遠にポーリングし続け、
+    失敗した事実がユーザーに一切伝わらないままになる。
+    """
+    try:
+        async with session_scope() as session:
+            summary_values = dict(
+                short_score=0, long_score=0, risk_score=0,
+                final_score=0, final_signal="error", updated_at=_jst_now_str(),
+            )
+            stmt = pg_insert(SignalSummaryRow).values(code=code, **summary_values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[SignalSummaryRow.code],
+                set_=summary_values,
+            )
+            await session.execute(stmt)
+            await session.commit()
+    except Exception as e:
+        print(f"Failed to record error state for {code}:", e)
+
+
+async def update_core_score(code: str, name_ja: str):
+    """テクニカル指標＋MLモデルでスコアを算出する（Geminiに依存しない、REQUIREMENTS_v2.md 2.2参照）。
+
+    Geminiのクォータ制約を一切受けないため、225銘柄全体を高速に巡回できる。
+    """
+    try:
+        ticker = f"{code}.T"
+        df = await asyncio.to_thread(yf.download, ticker, period="1y", interval="1d", progress=False)
+        if df.empty:
+            print(f"[CORE] {code}: yfinance returned no data")
+            await _mark_stock_as_errored(code)
+            return
+
+        has_multiindex_columns = isinstance(df.columns, tuple) or hasattr(df.columns, 'levels')
+        close = (df['Close'].iloc[:, 0] if has_multiindex_columns else df['Close']).dropna()
+        volume = (df['Volume'].iloc[:, 0] if has_multiindex_columns else df['Volume']).dropna()
+
         chart_row = None
+        if len(close) >= 5:
+            ma5 = close.rolling(window=5).mean()
+            ma25 = close.rolling(window=25).mean()
+            labels = [d.strftime("%Y/%m/%d") for d in close.index]
+            prices = [float(x) if not str(x).lower() == 'nan' else None for x in close.values]
+            ma5_vals = [float(x) if not str(x).lower() == 'nan' else None for x in ma5.values]
+            ma25_vals = [float(x) if not str(x).lower() == 'nan' else None for x in ma25.values]
+            chart_row = {"labels": labels, "prices": prices, "ma5": ma5_vals, "ma25": ma25_vals}
 
-        # 1. Chart / Technicals（yfinanceはブロッキングI/OのためThreadに逃がす）
-        try:
-            ticker = f"{code}.T"
-            df = await asyncio.to_thread(yf.download, ticker, period="6mo", interval="1d", progress=False)
-            if not df.empty:
-                has_multiindex_columns = isinstance(df.columns, tuple) or hasattr(df.columns, 'levels')
-                close_col = df['Close'].iloc[:, 0] if has_multiindex_columns else df['Close']
-                close_prices = close_col.dropna()
-                if len(close_prices) >= 5:
-                    ma5 = close_prices.rolling(window=5).mean()
-                    ma25 = close_prices.rolling(window=25).mean()
+        features = latest_feature_vector(close, volume)
+        if features is None:
+            # 上場間もない等で十分な履歴がない場合はニュートラル固定値にフォールバックする
+            short_score, long_score = 50, 50
+        else:
+            short_score = predictor.score_from_technicals(features)
+            predicted_return = predictor.predict_forward_return(features)
+            long_score = predictor.score_from_return(predicted_return)
 
-                    labels = [d.strftime("%Y/%m/%d") for d in close_prices.index]
-                    prices = [float(x) if not str(x).lower() == 'nan' else None for x in close_prices.values]
-                    ma5_vals = [float(x) if not str(x).lower() == 'nan' else None for x in ma5.values]
-                    ma25_vals = [float(x) if not str(x).lower() == 'nan' else None for x in ma25.values]
-
-                    chart_row = {"labels": labels, "prices": prices, "ma5": ma5_vals, "ma25": ma25_vals}
-
-                    last_price = close_prices.values[-1]
-                    if last_price > ma5.values[-1]:
-                        short_score = 75
-                    else:
-                        short_score = 40
-        except Exception as e:
-            print("Background yfinance error:", e)
-
-        # 2. News Facts & Scoring（外部I/OはThreadに逃がす）
-        raw_news = await asyncio.to_thread(ai_service.fetch_recent_news, name_ja)
-        if not raw_news:
-            raw_news = [{"title": f"{name_ja}に関する直近のニュースはありません", "url": "#", "source": "API"}]
-
-        facts_news = await asyncio.to_thread(ai_service.extract_news_facts, code, name_ja, raw_news)
-        news_results = internal_ai.score_news_facts(facts_news, raw_news)
-
-        total_news_effect = 0
-        for item in news_results:
-            try:
-                eff_str = str(item.get("effect", "0")).replace('+', '')
-                total_news_effect += int(float(eff_str))
-            except Exception:
-                pass
-
-        # 3. Docs Facts & Scoring
-        facts_docs = await asyncio.to_thread(ai_service.extract_docs_facts, code, name_ja)
-        docs_results = internal_ai.score_docs_facts(facts_docs)
-
-        total_docs_effect = 0
-        for d in docs_results:
-            try:
-                eff_str = str(d.get("effect", "0")).replace('+', '')
-                total_docs_effect += int(float(eff_str))
-            except Exception:
-                pass
-
-        # 4. Final Summary
-        short_score = min(100, max(0, short_score + total_news_effect))
-        long_score = min(100, max(0, 65 + total_docs_effect))
-        final_score = int(short_score * 0.5 + long_score * 0.5)
-
+        # 投資スタイルは短期・長期を均等評価（REQUIREMENTS_v2.md 2.2/決定事項サマリー参照）
+        final_score = round(short_score * 0.5 + long_score * 0.5)
         if final_score >= 60:
             final_signal = "buy"
         elif final_score <= 45:
@@ -218,9 +232,6 @@ async def process_stock_background(code: str, name_ja: str):
         else:
             final_signal = "neutral"
 
-        jst_time = (datetime.now(timezone.utc) + timedelta(hours=9)).strftime("%Y-%m-%d %H:%M:%S")
-
-        # 5. DBへ永続化（チャート・ニュース・開示・サマリー）
         async with session_scope() as session:
             if chart_row is not None:
                 stmt = pg_insert(ChartDataRow).values(stock_code=code, **chart_row)
@@ -230,6 +241,41 @@ async def process_stock_background(code: str, name_ja: str):
                 )
                 await session.execute(stmt)
 
+            summary_values = dict(
+                short_score=short_score, long_score=long_score, risk_score=50,
+                final_score=final_score, final_signal=final_signal, updated_at=_jst_now_str(),
+            )
+            stmt = pg_insert(SignalSummaryRow).values(code=code, news_updated_at="", **summary_values)
+            # news_updated_at は別の巡回ループ（Gemini側）が管理するため、ここでは更新しない
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[SignalSummaryRow.code],
+                set_=summary_values,
+            )
+            await session.execute(stmt)
+            await session.commit()
+    except Exception as e:
+        print(f"update_core_score failed for {code}:", e)
+        await _mark_stock_as_errored(code)
+    finally:
+        _CORE_PROCESSING.discard(code)
+
+
+async def update_news_and_docs(code: str, name_ja: str):
+    """Gemini APIでニュース・開示情報の分析を行う。コアスコアの算出はブロックしない
+
+    （REQUIREMENTS_v2.md 2.3参照）。無料枠クォータの制約により低頻度でしか回らない。
+    """
+    try:
+        raw_news = await asyncio.to_thread(ai_service.fetch_recent_news, name_ja)
+        if not raw_news:
+            raw_news = [{"title": f"{name_ja}に関する直近のニュースはありません", "url": "#", "source": "API"}]
+        facts_news = await asyncio.to_thread(ai_service.extract_news_facts, code, name_ja, raw_news)
+        news_results = internal_ai.score_news_facts(facts_news, raw_news)
+
+        facts_docs = await asyncio.to_thread(ai_service.extract_docs_facts, code, name_ja)
+        docs_results = internal_ai.score_docs_facts(facts_docs)
+
+        async with session_scope() as session:
             await session.execute(delete(NewsItemRow).where(NewsItemRow.stock_code == code))
             session.add_all([
                 NewsItemRow(stock_code=code, title=n.get("title", ""), source=n.get("source", ""),
@@ -246,26 +292,57 @@ async def process_stock_background(code: str, name_ja: str):
                 for d in docs_results
             ])
 
-            summary_values = dict(
-                short_score=short_score, long_score=long_score, risk_score=50,
-                final_score=final_score, final_signal=final_signal, updated_at=jst_time,
+            # コアスコアの行がまだ存在しない場合に備え、必要な列にはニュートラル既定値を用意しつつ、
+            # 既に行がある場合は news_updated_at 以外の列を上書きしない（コアスコアを壊さないため）
+            news_updated_at = _jst_now_str()
+            stmt = pg_insert(SignalSummaryRow).values(
+                code=code, short_score=50, long_score=50, risk_score=50,
+                final_score=50, final_signal="analyzing...", updated_at="",
+                news_updated_at=news_updated_at,
             )
-            stmt = pg_insert(SignalSummaryRow).values(code=code, **summary_values)
             stmt = stmt.on_conflict_do_update(
                 index_elements=[SignalSummaryRow.code],
-                set_=summary_values,
+                set_={"news_updated_at": stmt.excluded.news_updated_at},
             )
             await session.execute(stmt)
-
             await session.commit()
+    except Exception as e:
+        print(f"update_news_and_docs failed for {code}:", e)
     finally:
-        # 途中で例外が起きても _PROCESSING に残り続けないようにする
-        # （元実装は正常終了時のみ解除しており、失敗時に銘柄が永久に再試行不能になるバグがあった）
-        _PROCESSING.discard(code)
+        _NEWS_PROCESSING.discard(code)
 
 
-async def autonomous_crawler():
-    """動的レートリミット保護つきのAI推論自律ループ"""
+async def autonomous_core_crawler():
+    """テクニカル+MLでコアスコアを高速に巡回更新するループ（Geminiクォータの影響を受けない）。"""
+    # 225銘柄を無理なく1日に何周もできる程度の間隔（yfinance側への配慮も兼ねる）
+    sleep_duration = 3.0
+    while True:
+        if MASTER_STOCKS:
+            async with session_scope() as session:
+                summaries = {
+                    r.code: r for r in (await session.execute(select(SignalSummaryRow))).scalars().all()
+                }
+
+            stock_queue = []
+            for s in MASTER_STOCKS:
+                if s.code in _CORE_PROCESSING:
+                    continue
+                summary = summaries.get(s.code)
+                timestamp = _parse_jst(summary.updated_at) if summary else 0.0
+                stock_queue.append((s, timestamp))
+
+            if stock_queue:
+                stock_queue.sort(key=lambda x: x[1])
+                target_stock = stock_queue[0][0]
+                _CORE_PROCESSING.add(target_stock.code)
+                print(f"[CORE_CRAWLER] Auto-updating: {target_stock.code}")
+                asyncio.create_task(update_core_score(target_stock.code, target_stock.name_ja))
+
+        await asyncio.sleep(sleep_duration)
+
+
+async def autonomous_news_crawler():
+    """Gemini APIでニュース・開示情報を巡回更新するループ（動的レートリミット保護つき）。"""
     sleep_duration = 16.0
     while True:
         if MASTER_STOCKS:
@@ -274,13 +351,15 @@ async def autonomous_crawler():
                 await asyncio.sleep(60)
                 continue
 
-            # 1日あたりの最大安全処理数 (1キー=1500回制限。1銘柄でニュースと開示の2回消費 = 750銘柄/日)
-            max_stocks_per_day = key_count * 750
+            # 1日あたりの最大安全処理数。
+            # 実際のGemini無料枠のクォータ上限は環境依存・モデル依存で変わりうるため
+            # 環境変数で上書き可能にする（2026-07-15時点、gemini-3.5-flashの無料枠で
+            # 実測した上限は「1キーあたり1日20リクエスト」だった。当初の想定=1500は誤り）。
+            daily_quota_per_key = int(os.getenv("GEMINI_DAILY_REQUEST_QUOTA_PER_KEY", "20"))
+            # 1銘柄でニュース・開示情報の2回Gemini APIを消費する
+            max_stocks_per_day = key_count * max(1, daily_quota_per_key // 2)
             # 1銘柄あたりの猶予時間（1日の秒数 86400 / 処理可能数）に 10% の安全バッファを掛ける
             safe_sleep_seconds = (86400 / max_stocks_per_day) * 1.10
-
-            # 全225銘柄を1時間(3600秒)で1巡させるために必要な目標間隔: 3600 / 225 = 16秒
-            # ただし、無料枠が少ない場合は無料枠保護（safe_sleep_seconds）を絶対優先とし、1時間以上の猶予を許容する
             sleep_duration = max(16.0, safe_sleep_seconds)
 
             async with session_scope() as session:
@@ -290,33 +369,18 @@ async def autonomous_crawler():
 
             stock_queue = []
             for s in MASTER_STOCKS:
-                # 処理中のステータスや「推論中」のものはキューから除外
-                summary = summaries.get(s.code)
-                if s.code in _PROCESSING or (summary and summary.final_signal == "analyzing..."):
+                if s.code in _NEWS_PROCESSING:
                     continue
-
-                # キャッシュが存在しない、または未更新の場合は一番古い（0.0：無限の過去）として扱う
-                if summary is None or not summary.updated_at or summary.updated_at == "推論中":
-                    stock_queue.append((s, 0.0))
-                else:
-                    try:
-                        # 時間文字列(例: 2026-04-13 00:30:25) をパースしてUnixタイムスタンプ化
-                        dt = datetime.strptime(summary.updated_at, "%Y-%m-%d %H:%M:%S")
-                        stock_queue.append((s, dt.timestamp()))
-                    except Exception:
-                        stock_queue.append((s, 0.0))
+                summary = summaries.get(s.code)
+                timestamp = _parse_jst(summary.news_updated_at) if summary else 0.0
+                stock_queue.append((s, timestamp))
 
             if stock_queue:
-                # タイムスタンプが古い（数字が小さい）順にソート。未検索（0.0）が最優先に来る。
                 stock_queue.sort(key=lambda x: x[1])
                 target_stock = stock_queue[0][0]
-
-                _PROCESSING.add(target_stock.code)
-                print(f"[CRAWLER] Auto-updating: {target_stock.code} (Wait: {sleep_duration:.1f}s)")
-                # コルーチンをイベントループのタスクとしてスケジュールする
-                # （元実装は asyncio.to_thread(...) の戻り値をawaitもcreate_taskもしておらず、
-                #   実際にはバックグラウンド処理が一切実行されないバグがあった）
-                asyncio.create_task(process_stock_background(target_stock.code, target_stock.name_ja))
+                _NEWS_PROCESSING.add(target_stock.code)
+                print(f"[NEWS_CRAWLER] Auto-updating: {target_stock.code} (Wait: {sleep_duration:.1f}s)")
+                asyncio.create_task(update_news_and_docs(target_stock.code, target_stock.name_ja))
 
         await asyncio.sleep(sleep_duration)
 
@@ -337,11 +401,13 @@ async def master_data_updater():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await load_master_data()
-    # 自律クローラータスクの起動
-    crawler_task = asyncio.create_task(autonomous_crawler())
+    # 自律クローラータスクの起動（コアスコアとニュース分析は独立したループ。REQUIREMENTS_v2.md 2.2/2.3参照）
+    core_crawler_task = asyncio.create_task(autonomous_core_crawler())
+    news_crawler_task = asyncio.create_task(autonomous_news_crawler())
     updater_task = asyncio.create_task(master_data_updater())
     yield
-    crawler_task.cancel()
+    core_crawler_task.cancel()
+    news_crawler_task.cancel()
     updater_task.cancel()
 
 
@@ -386,9 +452,12 @@ async def get_stock_summary(code: str, background_tasks: BackgroundTasks, sessio
     stock = next((s for s in MASTER_STOCKS if s.code == code), None)
     name_ja = stock.name_ja if stock else "該当銘柄"
 
-    if code not in _PROCESSING:
-        _PROCESSING.add(code)
-        background_tasks.add_task(process_stock_background, code, name_ja)
+    # コアスコアはGeminiに依存しないため高速（数秒程度）。
+    # ニュース/開示分析（Gemini）はここではトリガーせず、別ループの巡回のみに任せる
+    # （クォータが極めて限られているため、閲覧操作から消費しないようにする。REQUIREMENTS_v2.md 5.1参照）
+    if code not in _CORE_PROCESSING:
+        _CORE_PROCESSING.add(code)
+        background_tasks.add_task(update_core_score, code, name_ja)
 
     return SignalSummary(
         code=code, short_score=0, long_score=0,

@@ -1,0 +1,70 @@
+# c:/Stock_Price_Forecast/backend/predictor.py
+"""
+学習済みMLモデルの読み込みと推論（REQUIREMENTS_v2.md 2.2参照）。
+
+Geminiに依存せず、学習済みモデルをローカルで読み込んで推論するだけなので
+無料枠クォータの制約を受けない。モデルは train_model.py で事前に学習しておく。
+"""
+
+import os
+
+import lightgbm as lgb
+import pandas as pd
+
+from features import FEATURE_NAMES
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "predictor.txt")
+
+_model: lgb.Booster | None = None
+_model_load_attempted = False
+
+
+def _load_model() -> lgb.Booster | None:
+    global _model, _model_load_attempted
+    if _model_load_attempted:
+        return _model
+    _model_load_attempted = True
+    if os.path.exists(MODEL_PATH):
+        try:
+            _model = lgb.Booster(model_file=MODEL_PATH)
+            print(f"[PREDICTOR] Loaded trained model from {MODEL_PATH}")
+        except Exception as e:
+            print(f"[PREDICTOR] Failed to load model: {e}")
+            _model = None
+    else:
+        print(
+            f"[PREDICTOR] No trained model found at {MODEL_PATH}. "
+            "Run `python train_model.py` first. Falling back to a simple heuristic."
+        )
+    return _model
+
+
+def is_model_trained() -> bool:
+    return _load_model() is not None
+
+
+def predict_forward_return(feature_vector: dict) -> float:
+    """学習済みモデルで将来（約1ヶ月先）のリターンを予測する。
+
+    モデルが未学習の場合は、MA5からの乖離率をそのまま予測値の代用として使う
+    フォールバック（学習前でもある程度意味のある挙動にするため）。
+    """
+    model = _load_model()
+    if model is not None:
+        x = pd.DataFrame([feature_vector])[FEATURE_NAMES]
+        return float(model.predict(x)[0])
+    return float(feature_vector.get("ma5_ratio", 0.0))
+
+
+def score_from_return(predicted_return: float) -> tuple[int, str]:
+    """予測リターンを0-100スコアに変換する。+5%を満点、-5%を最低点とする単純な線形マッピング。"""
+    score = 50 + (predicted_return / 0.05) * 50
+    score = max(0, min(100, round(score)))
+    return score
+
+
+def score_from_technicals(features: dict) -> int:
+    """短期スコア: RSIをベースに、MACDヒストグラムの符号で微調整する単純なモメンタム指標。"""
+    rsi = features["rsi14"]
+    macd_adjustment = 5 if features["macd_hist"] > 0 else -5
+    return max(0, min(100, round(rsi + macd_adjustment)))

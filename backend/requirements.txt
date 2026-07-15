@@ -26,20 +26,20 @@ feedparser==6.0.12
 
 # --- データ処理 / 株価 ---
 pandas==3.0.2
-# pandas-ta(内部でnumbaを使用)がnumpy<2.3を要求するため、上限を明示的に指定
-# （ローカル開発venvではnumpy2.4系が入っているが、その組み合わせだとpandas-taと衝突する）
 numpy>=2.2.6,<2.3
 yfinance==1.2.1
-pandas-ta>=0.3.14b0
+# テクニカル指標（MA/RSI/MACD/ボリンジャーバンド）はpandasのみで自前実装する。
+# pandas-taは内部でnumbaを使用しPython3.12必須かつビルドが重く、過去にnumpyバージョン
+# 衝突の原因にもなったため不採用とした（REQUIREMENTS_v2.md 1.1/1.2参照）。
 
-# --- 機械学習（フェーズ2以降） ---
+# --- 機械学習 ---
 scikit-learn>=1.5,<2.0
 lightgbm>=4.6,<5.0
 
 # --- バックテスト（フェーズ2） ---
 # ライセンス: AGPL-3.0。自分専用利用（REQUIREMENTS_v2.md 6.1）の前提で採用。
 # REQUIREMENTS_v2.md 1.2 参照。
-backtesting>=0.3.3,<0.4
+backtesting>=0.3.3,<1.0
 
 # --- AI連携（既存） ---
 google-genai==1.71.0
