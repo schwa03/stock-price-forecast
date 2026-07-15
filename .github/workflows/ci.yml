@@ -31,9 +31,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+      # package-lock.jsonはコミットしていない（Windowsで生成するとLinux向け
+      # ネイティブ依存が欠落しCloudflareのビルドが失敗するため）。npm ciではなくnpm installを使う。
+      - run: npm install
       - run: npm run lint
       - run: npm run build
       # Vitestによるテストは導入次第このジョブに追加する（PROGRESS.md参照）

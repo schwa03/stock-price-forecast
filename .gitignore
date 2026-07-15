@@ -24,3 +24,8 @@ keys/
 
 # Docker / DB永続化データはボリューム管理のためリポジトリには含めない
 pgdata/
+
+# frontend/package-lock.json はコミットしない。
+# Windowsで生成するとLinux向けのネイティブ依存(@emnapi/*等)が欠落し、
+# Cloudflareのビルド環境(Linux)でnpm ciが失敗するため（npm installに委ねる）
+frontend/package-lock.json
