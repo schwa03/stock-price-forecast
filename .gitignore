@@ -24,3 +24,8 @@ keys/
 
 # Docker / DB永続化データはボリューム管理のためリポジトリには含めない
 pgdata/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
