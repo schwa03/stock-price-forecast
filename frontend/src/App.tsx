@@ -198,8 +198,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleManualRefresh = async () => {
+    if (!current) return;
     setIsRefreshing(true);
     try {
+      // コアスコア（テクニカル+ML）はGeminiのようなクォータ制約がないため、
+      // 「最新化」ボタンからその場で即座に再計算する（ニュース/開示分析は対象外）
+      await axios.post(`${API_BASE}/api/stocks/${current.code}/refresh`).catch(console.error);
       await fetchData();
     } finally {
       setIsRefreshing(false);

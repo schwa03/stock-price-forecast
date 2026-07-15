@@ -465,6 +465,33 @@ async def get_stock_summary(code: str, background_tasks: BackgroundTasks, sessio
         updated_at="推論中"
     )
 
+@api.post("/api/stocks/{code}/refresh", response_model=SignalSummary)
+async def refresh_stock_summary(code: str, session=Depends(get_session)):
+    """「最新化」ボタン専用: コアスコア（テクニカル+ML）をその場で即座に再計算する。
+
+    Geminiのようなクォータ制約を受けないため、閲覧操作からのオンデマンド実行を許可している
+    （ニュース/開示分析側はこの対象にしない。REQUIREMENTS_v2.md 5.1/6.3参照）。
+    """
+    stock = next((s for s in MASTER_STOCKS if s.code == code), None)
+    name_ja = stock.name_ja if stock else "該当銘柄"
+
+    if code not in _CORE_PROCESSING:
+        _CORE_PROCESSING.add(code)
+        await update_core_score(code, name_ja)
+
+    row = await session.get(SignalSummaryRow, code)
+    if row:
+        return SignalSummary(
+            code=row.code, short_score=row.short_score, long_score=row.long_score,
+            risk_score=row.risk_score, final_score=row.final_score,
+            final_signal=row.final_signal, updated_at=row.updated_at,
+        )
+    return SignalSummary(
+        code=code, short_score=0, long_score=0,
+        risk_score=0, final_score=0, final_signal="analyzing...",
+        updated_at="推論中"
+    )
+
 @api.get("/api/stocks/{code}/news", response_model=List[NewsInfo])
 async def get_stock_news(code: str, session=Depends(get_session)):
     rows = (await session.execute(
