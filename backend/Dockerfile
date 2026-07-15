@@ -4,6 +4,13 @@ FROM python:3.12-slim AS base
 
 WORKDIR /app
 
+# LightGBMのコンパイル済みバイナリがOpenMPランタイム(libgomp.so.1)に依存するが、
+# python:3.12-slimには含まれていないため明示的にインストールする
+# （実際にVM上で "OSError: libgomp.so.1: cannot open shared object file" が発生し判明した）
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # レイヤーキャッシュを効かせるため依存関係だけ先にコピー
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
