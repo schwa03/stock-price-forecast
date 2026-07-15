@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sun, Moon, Activity, RefreshCw, LogOut } from 'lucide-react';
 import './index.css';
 import axios from 'axios';
@@ -152,6 +152,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // Selected state
   const [current, setCurrent] = useState<StockMaster | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const mainRef = useRef<HTMLElement>(null);
   
   // Data states
   const [summary, setSummary] = useState<SignalSummary | null>(null);
@@ -197,6 +198,11 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   const selectStock = (s: StockMaster) => {
     setCurrent(s);
     setSummary(null); setBacktest(null); setChartData(null); setNewsList([]); setDocList([]);
+    // 画面が狭い（サイドバーと詳細が縦積みになる）場合、銘柄選択後に詳細側まで
+    // 自動スクロールする。デスクトップ幅では両方見えているため何もしない。
+    if (window.matchMedia('(max-width: 1000px)').matches) {
+      mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   // 選択銘柄が変わったら取得
@@ -265,7 +271,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
       <div className="layout">
         {/* Sidebar */}
-        <aside style={{ padding: 'var(--s6)', borderRight: '1px solid var(--dv)', background: 'var(--sf)', overflowY: 'auto' }}>
+        <aside className="sidebar" style={{ padding: 'var(--s6)', borderRight: '1px solid var(--dv)', background: 'var(--sf)', overflowY: 'auto' }}>
           <div style={{ fontSize: 'var(--xs)', color: 'var(--tf)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 800, marginBottom: 'var(--s3)' }}>日経225 銘柄</div>
           <input 
             value={search}
@@ -293,7 +299,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         </aside>
 
         {/* Main */}
-        <main className="main" style={{ overflowY: 'auto' }}>
+        <main ref={mainRef} className="main" style={{ overflowY: 'auto' }}>
           {current ? (
             <>
               <section style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--s4)', alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -308,6 +314,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                      </div>
                   )}
                   {summary?.final_signal === 'analyzing...' && <div style={{display:'flex', alignItems:'center', color:'var(--tm)', fontSize:'var(--sm)'}}>AI分析中...</div>}
+                  {summary?.final_signal === 'error' && <div style={{display:'flex', alignItems:'center', color:'var(--er, #d64545)', fontSize:'var(--sm)'}}>分析に失敗しました（自動的に再試行されます）</div>}
                   <button onClick={fetchData} className="btn" style={{display: 'flex', gap: '8px', alignItems:'center'}}>
                     <RefreshCw size={18} />
                     最新化
@@ -320,10 +327,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <div className="card" style={{ padding: 'var(--s5)' }}>
                   <div style={{ fontSize: 'var(--xs)', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tf)', fontWeight: 800 }}>最終判定</div>
                   <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>
-                    {summary ? `${summary.final_score} pt` : 'Loading...'}
+                    {summary ? (summary.final_signal === 'error' ? 'エラー' : `${summary.final_score} pt`) : 'Loading...'}
                   </div>
                   <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: 'var(--s2)' }}>
-                    {summary ? <span className={`pill ${summary.final_signal==='buy'?'p-ok':summary.final_signal==='sell'?'p-er':'p-gd'}`}>{summary.final_signal.toUpperCase()}</span> : '---'}
+                    {summary && summary.final_signal === 'error' && <span className="pill p-er">取得失敗</span>}
+                    {summary && summary.final_signal !== 'error' && <span className={`pill ${summary.final_signal==='buy'?'p-ok':summary.final_signal==='sell'?'p-er':'p-gd'}`}>{summary.final_signal.toUpperCase()}</span>}
+                    {!summary && '---'}
                   </div>
                 </div>
                 

@@ -110,6 +110,11 @@ a:hover {
   .layout {
     grid-template-columns: 1fr;
   }
+  /* 縦積みレイアウトでは銘柄一覧(225件)が無制限に伸びると詳細画面が
+     大きく下に押しやられてしまうため、一覧側の高さを制限しスクロール可能にする */
+  .sidebar {
+    max-height: 45vh;
+  }
 }
 
 /* Utilities */
