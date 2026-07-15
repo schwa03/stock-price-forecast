@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+# main.py 等がbackend/直下でトップレベルimportされている既存構成に合わせ、
+# backend/ 自体をsys.pathに追加する（`import main` 等をtests/から解決できるようにする）
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

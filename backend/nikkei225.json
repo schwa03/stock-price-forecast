@@ -1,0 +1,1340 @@
+[
+  {
+    "code": "2002",
+    "name_ja": "日清製粉グループ本社",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2269",
+    "name_ja": "明治ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2282",
+    "name_ja": "日本ハム",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2501",
+    "name_ja": "サッポロホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2502",
+    "name_ja": "アサヒグループホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2503",
+    "name_ja": "キリンホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2801",
+    "name_ja": "キッコーマン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2802",
+    "name_ja": "味の素",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2871",
+    "name_ja": "ニチレイ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2914",
+    "name_ja": "日本たばこ産業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3401",
+    "name_ja": "帝人",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3402",
+    "name_ja": "東レ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3861",
+    "name_ja": "王子ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3405",
+    "name_ja": "クラレ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3407",
+    "name_ja": "旭化成",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4004",
+    "name_ja": "レゾナック・ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4005",
+    "name_ja": "住友化学",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4021",
+    "name_ja": "日産化学",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4042",
+    "name_ja": "東ソー",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4043",
+    "name_ja": "トクヤマ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4061",
+    "name_ja": "デンカ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4063",
+    "name_ja": "信越化学工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4183",
+    "name_ja": "三井化学",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4188",
+    "name_ja": "三菱ケミカルグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4208",
+    "name_ja": "UBE",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4452",
+    "name_ja": "花王",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4901",
+    "name_ja": "富士フイルムホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4911",
+    "name_ja": "資生堂",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6988",
+    "name_ja": "日東電工",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4151",
+    "name_ja": "協和キリン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4502",
+    "name_ja": "武田薬品工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4503",
+    "name_ja": "アステラス製薬",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4506",
+    "name_ja": "住友ファーマ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4507",
+    "name_ja": "塩野義製薬",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4519",
+    "name_ja": "中外製薬",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4523",
+    "name_ja": "エーザイ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4568",
+    "name_ja": "第一三共",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4578",
+    "name_ja": "大塚ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5019",
+    "name_ja": "出光興産",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5020",
+    "name_ja": "ENEOSホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5101",
+    "name_ja": "横浜ゴム",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5108",
+    "name_ja": "ブリヂストン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5201",
+    "name_ja": "AGC",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5214",
+    "name_ja": "日本電気硝子",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5233",
+    "name_ja": "太平洋セメント",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5301",
+    "name_ja": "東海カーボン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5332",
+    "name_ja": "TOTO",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5333",
+    "name_ja": "NGK",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5401",
+    "name_ja": "日本製鉄",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5406",
+    "name_ja": "神戸製鋼所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5411",
+    "name_ja": "JFEホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3436",
+    "name_ja": "SUMCO",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5706",
+    "name_ja": "三井金属鉱業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5711",
+    "name_ja": "三菱マテリアル",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5713",
+    "name_ja": "住友金属鉱山",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5714",
+    "name_ja": "DOWAホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5801",
+    "name_ja": "古河電気工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5802",
+    "name_ja": "住友電気工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5803",
+    "name_ja": "フジクラ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5631",
+    "name_ja": "日本製鋼所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6103",
+    "name_ja": "オークマ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6113",
+    "name_ja": "アマダ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6273",
+    "name_ja": "SMC",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6301",
+    "name_ja": "小松製作所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6302",
+    "name_ja": "住友重機械工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6305",
+    "name_ja": "日立建機",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6326",
+    "name_ja": "クボタ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6361",
+    "name_ja": "荏原製作所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6367",
+    "name_ja": "ダイキン工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6471",
+    "name_ja": "日本精工",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6472",
+    "name_ja": "NTN",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6473",
+    "name_ja": "ジェイテクト",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7004",
+    "name_ja": "カナデビア",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7011",
+    "name_ja": "三菱重工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7013",
+    "name_ja": "IHI",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4062",
+    "name_ja": "イビデン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6479",
+    "name_ja": "ミネベアミツミ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6501",
+    "name_ja": "日立製作所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6503",
+    "name_ja": "三菱電機",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6504",
+    "name_ja": "富士電機",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6506",
+    "name_ja": "安川電機",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6526",
+    "name_ja": "ソシオネクスト",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6645",
+    "name_ja": "オムロン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6701",
+    "name_ja": "日本電気",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6702",
+    "name_ja": "富士通",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6723",
+    "name_ja": "ルネサスエレクトロニクス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6724",
+    "name_ja": "セイコーエプソン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6752",
+    "name_ja": "パナソニックホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6753",
+    "name_ja": "シャープ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6758",
+    "name_ja": "ソニーグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6762",
+    "name_ja": "TDK",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6770",
+    "name_ja": "アルプスアルパイン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6841",
+    "name_ja": "横河電機",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6857",
+    "name_ja": "アドバンテスト",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6861",
+    "name_ja": "キーエンス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6902",
+    "name_ja": "デンソー",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6920",
+    "name_ja": "レーザーテック",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6954",
+    "name_ja": "ファナック",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6963",
+    "name_ja": "ローム",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6971",
+    "name_ja": "京セラ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6976",
+    "name_ja": "太陽誘電",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6981",
+    "name_ja": "村田製作所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7735",
+    "name_ja": "SCREENホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7751",
+    "name_ja": "キヤノン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7752",
+    "name_ja": "リコー",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8035",
+    "name_ja": "東京エレクトロン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7012",
+    "name_ja": "川崎重工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7201",
+    "name_ja": "日産自動車",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7202",
+    "name_ja": "いすゞ自動車",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7203",
+    "name_ja": "トヨタ自動車",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7211",
+    "name_ja": "三菱自動車工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7261",
+    "name_ja": "マツダ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7267",
+    "name_ja": "本田技研工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7269",
+    "name_ja": "スズキ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7270",
+    "name_ja": "SUBARU",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7272",
+    "name_ja": "ヤマハ発動機",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4543",
+    "name_ja": "テルモ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4902",
+    "name_ja": "コニカミノルタ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6146",
+    "name_ja": "ディスコ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7731",
+    "name_ja": "ニコン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7733",
+    "name_ja": "オリンパス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7741",
+    "name_ja": "HOYA",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7832",
+    "name_ja": "バンダイナムコホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7911",
+    "name_ja": "TOPPANホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7912",
+    "name_ja": "大日本印刷",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7951",
+    "name_ja": "ヤマハ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1332",
+    "name_ja": "ニッスイ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1605",
+    "name_ja": "INPEX",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1721",
+    "name_ja": "コムシスホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1801",
+    "name_ja": "大成建設",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1802",
+    "name_ja": "大林組",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1803",
+    "name_ja": "清水建設",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1808",
+    "name_ja": "長谷工コーポレーション",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1812",
+    "name_ja": "鹿島建設",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1925",
+    "name_ja": "大和ハウス工業",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1928",
+    "name_ja": "積水ハウス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "1963",
+    "name_ja": "日揮ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2768",
+    "name_ja": "双日",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8001",
+    "name_ja": "伊藤忠商事",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8002",
+    "name_ja": "丸紅",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8015",
+    "name_ja": "豊田通商",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8031",
+    "name_ja": "三井物産",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8053",
+    "name_ja": "住友商事",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8058",
+    "name_ja": "三菱商事",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3086",
+    "name_ja": "J.フロント リテイリング",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3092",
+    "name_ja": "ZOZO",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3099",
+    "name_ja": "三越伊勢丹ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3382",
+    "name_ja": "セブン&アイ・ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7453",
+    "name_ja": "良品計画",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7532",
+    "name_ja": "パン・パシフィック・インターナショナルホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8233",
+    "name_ja": "髙島屋",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8252",
+    "name_ja": "丸井グループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8267",
+    "name_ja": "イオン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9843",
+    "name_ja": "ニトリホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9983",
+    "name_ja": "ファーストリテイリング",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "5831",
+    "name_ja": "しずおかフィナンシャルグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7186",
+    "name_ja": "横浜フィナンシャルグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8304",
+    "name_ja": "あおぞら銀行",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8306",
+    "name_ja": "三菱UFJフィナンシャル・グループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8308",
+    "name_ja": "りそなホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8309",
+    "name_ja": "三井住友トラスト・ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8316",
+    "name_ja": "三井住友フィナンシャルグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8331",
+    "name_ja": "千葉銀行",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8354",
+    "name_ja": "ふくおかフィナンシャルグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8411",
+    "name_ja": "みずほフィナンシャルグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8601",
+    "name_ja": "大和証券グループ本社",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8604",
+    "name_ja": "野村ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8630",
+    "name_ja": "SOMPOホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8725",
+    "name_ja": "MS&ADインシュアランスグループホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8750",
+    "name_ja": "第一ライフグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8766",
+    "name_ja": "東京海上ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8795",
+    "name_ja": "T&Dホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8253",
+    "name_ja": "クレディセゾン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8591",
+    "name_ja": "オリックス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8697",
+    "name_ja": "日本取引所グループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3289",
+    "name_ja": "東急不動産ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8801",
+    "name_ja": "三井不動産",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8802",
+    "name_ja": "三菱地所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8804",
+    "name_ja": "東京建物",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "8830",
+    "name_ja": "住友不動産",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9001",
+    "name_ja": "東武鉄道",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9005",
+    "name_ja": "東急",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9007",
+    "name_ja": "小田急電鉄",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9008",
+    "name_ja": "京王電鉄",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9009",
+    "name_ja": "京成電鉄",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9020",
+    "name_ja": "東日本旅客鉄道",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9021",
+    "name_ja": "西日本旅客鉄道",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9022",
+    "name_ja": "東海旅客鉄道",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9064",
+    "name_ja": "ヤマトホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9147",
+    "name_ja": "NIPPON EXPRESSホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9101",
+    "name_ja": "日本郵船",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9104",
+    "name_ja": "商船三井",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9107",
+    "name_ja": "川崎汽船",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9201",
+    "name_ja": "日本航空",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9202",
+    "name_ja": "ANAホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9432",
+    "name_ja": "NTT",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9433",
+    "name_ja": "KDDI",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9434",
+    "name_ja": "ソフトバンク",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9984",
+    "name_ja": "ソフトバンクグループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9501",
+    "name_ja": "東京電力ホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9502",
+    "name_ja": "中部電力",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9503",
+    "name_ja": "関西電力",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9531",
+    "name_ja": "東京ガス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9532",
+    "name_ja": "大阪ガス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2413",
+    "name_ja": "エムスリー",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "2432",
+    "name_ja": "ディー・エヌ・エー",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3659",
+    "name_ja": "ネクソン",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "3697",
+    "name_ja": "SHIFT",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4307",
+    "name_ja": "野村総合研究所",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4324",
+    "name_ja": "電通グループ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4385",
+    "name_ja": "メルカリ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4661",
+    "name_ja": "オリエンタルランド",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4689",
+    "name_ja": "LINEヤフー",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4704",
+    "name_ja": "トレンドマイクロ",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4751",
+    "name_ja": "サイバーエージェント",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "4755",
+    "name_ja": "楽天",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6098",
+    "name_ja": "リクルートホールディングス",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6178",
+    "name_ja": "日本郵政",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "6532",
+    "name_ja": "ベイカレント",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "7974",
+    "name_ja": "任天堂",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9602",
+    "name_ja": "東宝",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9735",
+    "name_ja": "セコム",
+    "name_en": "",
+    "sector": ""
+  },
+  {
+    "code": "9766",
+    "name_ja": "コナミグループ",
+    "name_en": "",
+    "sector": ""
+  }
+]

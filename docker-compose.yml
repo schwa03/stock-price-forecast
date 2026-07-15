@@ -1,0 +1,59 @@
+# Oracle Cloud Always Free VM上でのバックエンド一式（backend / PostgreSQL / Caddy）。
+# フロントエンドはCloudflare Pagesでホストするためここには含まない。
+# 公開経路はDuckDNS（無料ダイナミックDNS）+ Caddy（自動HTTPS）。
+# ドメインを所有しないためCloudflare Tunnel/Accessは使わない方針（REQUIREMENTS_v2.md 1節/1.2節）。
+# 環境変数は同ディレクトリの .env から読み込む（.env.example を参照して作成すること）。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      GEMINI_API_KEYS: ${GEMINI_API_KEYS}
+      EDINET_API_KEY: ${EDINET_API_KEY}
+      APP_PASSWORD: ${APP_PASSWORD}
+      SESSION_SECRET: ${SESSION_SECRET}
+      # production指定で初めてセッションCookieがSecure/SameSite=Noneになる
+      # （frontend: Cloudflare Pages / backend: DuckDNS はオリジンが異なるため必須。auth.py参照）
+      ENV: production
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+    # 受信ポートは公開しない（Caddyコンテナがリバースプロキシとして前段に立つ）
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DUCKDNS_HOSTNAME: ${DUCKDNS_HOSTNAME}
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

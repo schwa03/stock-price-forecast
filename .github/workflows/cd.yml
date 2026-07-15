@@ -1,0 +1,33 @@
+name: CD
+
+# CIワークフロー（ci.yml）がmainブランチで成功した場合のみデプロイする。
+# 事前にVM側で `git clone` 済みであることを前提とし、以降は pull + 再起動のみ行う。
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      # 必要なGitHub Secrets:
+      #   VM_HOST     : OracleクラウドVMの公開IP or DuckDNSホスト名
+      #   VM_USER     : SSHログインユーザー名
+      #   VM_SSH_KEY  : デプロイ専用のSSH秘密鍵（VM側に対応する公開鍵を登録しておく）
+      #   VM_SSH_PORT : 任意。省略時は22番ポート
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || 22 }}
+          script: |
+            set -e
+            cd /opt/stock-price-forecast
+            git pull --ff-only
+            docker compose up -d --build
+            docker compose exec -T backend alembic upgrade head

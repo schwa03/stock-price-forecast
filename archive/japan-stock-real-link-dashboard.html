@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本株 実リンク統合ダッシュボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root,[data-theme="light"]{--bg:#f7f6f2;--sf:#f9f8f5;--sf2:#fbfbf9;--sfo:#f3f0ec;--bd:#d4d1ca;--dv:#dcd9d5;--tx:#28251d;--tm:#75736d;--tf:#b1aea8;--inv:#f9f8f4;--pr:#01696f;--prh:#0c4e54;--ok:#437a22;--er:#a12c7b;--gd:#d19900;--bl:#006494;--sh:0 8px 24px rgba(0,0,0,.08);--xs:clamp(.75rem,.7rem + .25vw,.875rem);--sm:clamp(.875rem,.8rem + .35vw,1rem);--base:clamp(1rem,.95rem + .25vw,1.125rem);--lg:clamp(1.125rem,1rem + .75vw,1.4rem);--xl:clamp(1.45rem,1.2rem + 1.1vw,1.9rem);--s1:.25rem;--s2:.5rem;--s3:.75rem;--s4:1rem;--s5:1.25rem;--s6:1.5rem;--s8:2rem;--r1:.5rem;--r2:.85rem;--font:'Inter',sans-serif;--mono:'IBM Plex Mono',monospace}
+[data-theme="dark"]{--bg:#171614;--sf:#1c1b19;--sf2:#201f1d;--sfo:#1d1c1a;--bd:#393836;--dv:#292826;--tx:#cdccca;--tm:#8d8a85;--tf:#5f5b57;--inv:#171614;--pr:#4f98a3;--prh:#227f8b;--ok:#79b855;--er:#dd6da8;--gd:#e8af34;--bl:#73a7d8;--sh:0 12px 28px rgba(0,0,0,.35)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0} body{min-height:100dvh;background:var(--bg);color:var(--tx);font:var(--base)/1.6 var(--font)} button,input,select{font:inherit;color:inherit} button{cursor:pointer;background:none;border:none} a{color:var(--pr);text-decoration:none} a:hover{color:var(--prh)}
+.app{display:grid;grid-template-rows:auto 1fr;min-height:100dvh}.top{display:flex;align-items:center;justify-content:space-between;padding:var(--s3) var(--s6);border-bottom:1px solid var(--dv);background:color-mix(in oklab,var(--bg) 88%, transparent);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:var(--s3);font-weight:800}.brand svg{width:30px;height:30px;color:var(--pr)}.layout{display:grid;grid-template-columns:300px 1fr}.side{padding:var(--s6);border-right:1px solid var(--dv);background:var(--sf)}.main{padding:var(--s6);display:flex;flex-direction:column;gap:var(--s4)} @media(max-width:1000px){.layout{grid-template-columns:1fr}.side{border-right:none;border-bottom:1px solid var(--dv)}}
+.label{font-size:var(--xs);color:var(--tf);text-transform:uppercase;letter-spacing:.08em;font-weight:800;margin-bottom:var(--s3)}.search{width:100%;padding:.85rem .95rem;border:1px solid var(--bd);border-radius:var(--r1);background:var(--sf2)}
+.list{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s4)}.item{padding:var(--s3);border:1px solid transparent;border-radius:var(--r1);background:var(--sf2);cursor:pointer}.item.active,.item:hover{border-color:color-mix(in oklab,var(--pr) 30%, var(--bd));background:color-mix(in oklab,var(--pr) 9%, var(--sf2))}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r2);box-shadow:var(--sh)}.head{padding:var(--s5);border-bottom:1px solid var(--dv);display:flex;justify-content:space-between;gap:var(--s4);align-items:flex-start}.body{padding:var(--s5)}.title{font-size:var(--base);font-weight:800}.sub{font-size:var(--xs);color:var(--tm);margin-top:.2rem}
+.hero{display:flex;justify-content:space-between;gap:var(--s4);align-items:flex-end;flex-wrap:wrap}.hero h1{font-size:var(--xl);line-height:1.1;letter-spacing:-.03em}.hero .meta{font-size:var(--sm);color:var(--tm);margin-top:var(--s2)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s4)} @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}} @media(max-width:680px){.kpis{grid-template-columns:1fr}}
+.kpi{padding:var(--s5)}.kpi .k{font-size:var(--xs);text-transform:uppercase;letter-spacing:.08em;color:var(--tf);font-weight:800}.kpi .v{font:700 var(--xl)/1.1 var(--mono);margin-top:var(--s2)}.kpi .f{font-size:var(--xs);color:var(--tm);margin-top:var(--s2)}
+.grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,.95fr);gap:var(--s4)} @media(max-width:1200px){.grid{grid-template-columns:1fr}} .two{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4)} @media(max-width:960px){.two{grid-template-columns:1fr}}
+.chart{height:350px}.mono{font-family:var(--mono)} .pill{display:inline-flex;align-items:center;padding:.2rem .55rem;border-radius:999px;font-size:11px;font-weight:800}.p-ok{color:var(--ok);background:color-mix(in oklab,var(--ok) 18%, transparent)}.p-er{color:var(--er);background:color-mix(in oklab,var(--er) 18%, transparent)}.p-gd{color:var(--gd);background:color-mix(in oklab,var(--gd) 18%, transparent)}
+.rows{display:flex;flex-direction:column;gap:var(--s3)}.row{padding:var(--s4);border:1px solid var(--dv);border-radius:var(--r1);background:var(--sfo)}.rowhead{display:flex;justify-content:space-between;gap:var(--s3);align-items:flex-start}.rtitle{font-size:var(--sm);font-weight:800}.rmeta{font-size:var(--xs);color:var(--tm);margin-top:.22rem}.contrib{margin-top:var(--s2);display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}.score{font:700 var(--sm)/1 var(--mono)} .pos{color:var(--ok)} .neg{color:var(--er)} .neu{color:var(--gd)}
+.note{padding:var(--s4) var(--s5);border-radius:var(--r2);background:color-mix(in oklab,var(--gd) 10%, var(--sf));border:1px solid color-mix(in oklab,var(--gd) 30%, var(--bd));font-size:var(--xs);color:var(--tm)}
+.table{display:grid;gap:var(--s2)} .tr{display:grid;grid-template-columns:1.4fr .8fr .5fr .8fr;gap:var(--s3);padding:var(--s3);background:var(--sfo);border-radius:var(--r1);font-size:var(--sm)} @media(max-width:760px){.tr{grid-template-columns:1fr}}
+.btn{padding:.6rem .9rem;border:1px solid var(--bd);border-radius:var(--r1);background:var(--sf)}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" fill="none"><rect x="1" y="1" width="30" height="30" rx="8" stroke="currentColor" stroke-width="2"/><path d="M6 21L12 15L16 18L23 10L26 12" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="26" cy="12" r="2.2" fill="currentColor"/></svg>
+    <div>
+      <div>日本株 実リンク統合ダッシュボード</div>
+      <div class="sub">ニュース記事URL・TDnet・EDINETの実接続を想定した実装雛形</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px"><button id="themeBtn" class="btn">テーマ切替</button></div>
+</header>
+<div class="layout">
+  <aside class="side">
+    <div class="label">銘柄検索</div>
+    <input id="search" class="search" placeholder="銘柄名・コード">
+    <div id="list" class="list"></div>
+    <div style="margin-top:var(--s8)">
+      <div class="label">実接続先</div>
+      <div class="row"><div class="rtitle">ニュース</div><div class="rmeta">個別記事URLを保持して表示</div></div>
+      <div class="row" style="margin-top:10px"><div class="rtitle">TDnet</div><div class="rmeta"><a href="https://www.jpx.co.jp/markets/paid-info-listing/tdnet/02.html" target="_blank" rel="noopener noreferrer">JPX TDnet API案内 ↗</a></div></div>
+      <div class="row" style="margin-top:10px"><div class="rtitle">EDINET</div><div class="rmeta"><a href="https://api-catalog.e-gov.go.jp/info/ja/apicatalog/view/33" target="_blank" rel="noopener noreferrer">EDINET API案内 ↗</a></div></div>
+    </div>
+  </aside>
+  <main class="main">
+    <section class="hero">
+      <div>
+        <h1 id="name">INPEX</h1>
+        <div class="meta" id="meta">1605 · エネルギー · 実データ接続時は個別記事・開示書類のURLを保持</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn range active" data-range="1M">1ヶ月</button>
+        <button class="btn range" data-range="3M">3ヶ月</button>
+        <button class="btn range" data-range="6M">6ヶ月</button>
+      </div>
+    </section>
+    <section class="kpis">
+      <div class="card kpi"><div class="k">現在値</div><div class="v" id="price">—</div><div class="f" id="priceDiff">—</div></div>
+      <div class="card kpi"><div class="k">短期スコア</div><div class="v" id="short">—</div><div class="f">チャート + ニュース</div></div>
+      <div class="card kpi"><div class="k">長期スコア</div><div class="v" id="long">—</div><div class="f">TDnet + EDINET + IR</div></div>
+      <div class="card kpi"><div class="k">最終判定</div><div class="v" id="final">—</div><div class="f" id="finalText">—</div></div>
+    </section>
+    <section class="grid">
+      <article class="card">
+        <div class="head"><div><div class="title">価格と短期予測</div><div class="sub">実運用時は価格APIとニューススコアを同期</div></div></div>
+        <div class="body"><canvas id="chart" class="chart"></canvas></div>
+      </article>
+      <article class="card">
+        <div class="head"><div><div class="title">重みと理由</div><div class="sub">短期40% / 長期45% / 外部15%</div></div></div>
+        <div class="body rows">
+          <div class="row"><div class="rtitle">短期 40%</div><div class="rmeta">相場は直近の需給・材料・テクニカルで大きく動くため。ニュース見出しとチャートの反応を重視。</div></div>
+          <div class="row"><div class="rtitle">長期 45%</div><div class="rmeta">最終的に株価は業績・資本政策・競争優位へ収れんしやすいため。TDnet・EDINET・IRの文書評価をやや重く設定。</div></div>
+          <div class="row"><div class="rtitle">外部 15%</div><div class="rmeta">イラン情勢、原油、為替、金利などは重要だが、個別銘柄の本質よりは市場全体補正として扱う。</div></div>
+        </div>
+      </article>
+    </section>
+    <section class="two">
+      <article class="card">
+        <div class="head"><div><div class="title">ニュース寄与度</div><div class="sub">どの記事が何点効いたか、個別記事URL付き</div></div></div>
+        <div class="body"><div id="newsRows" class="rows"></div></div>
+      </article>
+      <article class="card">
+        <div class="head"><div><div class="title">TDnet / EDINET / IR 寄与度</div><div class="sub">開示資料ごとの寄与点と直接リンク</div></div></div>
+        <div class="body"><div id="docRows" class="rows"></div></div>
+      </article>
+    </section>
+    <section class="two">
+      <article class="card">
+        <div class="head"><div><div class="title">判定の点数内訳</div><div class="sub">ニュース・資料・外部要因が最終スコアへどう効いたか</div></div></div>
+        <div class="body"><div id="factorTable" class="table"></div></div>
+      </article>
+      <article class="card">
+        <div class="head"><div><div class="title">実装メモ</div><div class="sub">このまま API 接続に進むための前提</div></div></div>
+        <div class="body rows">
+          <div class="row"><div class="rtitle">ニュースURL</div><div class="rmeta">ニュース取得時に title, published_at, article_url, source, sentiment, contribution_points を保存して表示</div></div>
+          <div class="row"><div class="rtitle">TDnet</div><div class="rmeta">JPXのTDnet APIは過去5年の適時開示情報を取得可能で、決算短信・業績予想修正・自己株取得等のPDF/XBRLを扱える [page:2].</div></div>
+          <div class="row"><div class="rtitle">EDINET</div><div class="rmeta">EDINET APIはJSON・ZIP・PDF形式で開示情報を取得できるREST APIです [page:1].</div></div>
+        </div>
+      </article>
+    </section>
+    <div class="note">このファイルは「実際に入れ込む設計」をすぐ試せるようにした実装雛形です。ニュース記事URL、TDnet、EDINETの直接リンク欄、そして寄与点表示のUIを組み込み済みです。実運用にはAPIキー、取得先の利用条件確認、HTML/PDF/XBRLの正規化処理が必要です [page:1][page:2].</div>
+  </main>
+</div>
+</div>
+<script>
+const STOCKS = [
+  {
+    code:'1605', name:'INPEX', sector:'エネルギー', base:2680, short:78, long:74, risk:72,
+    news:[
+      {title:'中東情勢緊迫化で原油先物が上昇', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/news/stocks', effect:'+12', reason:'原油高は上流資源会社の利益期待を押し上げる', cls:'pos'},
+      {title:'資源株に資金流入', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/news/stocks', effect:'+7', reason:'相対的な防衛セクターとして需給が改善', cls:'pos'},
+      {title:'為替変動は限定的', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/stocks', effect:'+1', reason:'今回の主因は為替より原油側', cls:'neu'}
+    ],
+    docs:[
+      {title:'TDnet: 決算短信', type:'TDnet', url:'https://www.jpx.co.jp/markets/paid-info-listing/tdnet/02.html', effect:'+8', reason:'配当・利益見通しが市場期待を支える', cls:'pos'},
+      {title:'EDINET: 有価証券報告書PDF', type:'EDINET', url:'https://api-catalog.e-gov.go.jp/info/ja/apicatalog/view/33', effect:'+6', reason:'CF体質と資源価格感応度が高い', cls:'pos'},
+      {title:'IR: 統合報告書', type:'IR', url:'https://www.inpex.co.jp/', effect:'+5', reason:'還元方針と中長期投資の整合性が高い', cls:'pos'}
+    ],
+    ext:[['原油上昇','追い風','+9'],['中東情勢','追い風と変動増','+3'],['為替','中立','0']]
+  },
+  {
+    code:'7203', name:'トヨタ自動車', sector:'輸送機', base:2860, short:42, long:81, risk:38,
+    news:[
+      {title:'原油高で物流・原材料コスト懸念', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/news/stocks', effect:'-9', reason:'短期的には採算圧迫懸念が先行', cls:'neg'},
+      {title:'円安は輸出採算の支え', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/stocks', effect:'+4', reason:'為替が利益率を補正', cls:'pos'},
+      {title:'世界販売は底堅い見方', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/news/stocks', effect:'+2', reason:'需要見通しは大崩れしていない', cls:'neu'}
+    ],
+    docs:[
+      {title:'TDnet: 業績予想関連開示', type:'TDnet', url:'https://www.jpx.co.jp/markets/paid-info-listing/tdnet/02.html', effect:'+6', reason:'業績修正がなければ安心感', cls:'pos'},
+      {title:'EDINET: 有価証券報告書PDF', type:'EDINET', url:'https://api-catalog.e-gov.go.jp/info/ja/apicatalog/view/33', effect:'+8', reason:'財務健全性と事業基盤が厚い', cls:'pos'},
+      {title:'IR: 統合報告書', type:'IR', url:'https://global.toyota/', effect:'+9', reason:'長期競争力と投資余力が大きい', cls:'pos'}
+    ],
+    ext:[['原油高','逆風','-7'],['為替','追い風','+4'],['景気減速','やや逆風','-2']]
+  },
+  {
+    code:'8058', name:'三菱商事', sector:'商社', base:3230, short:66, long:77, risk:70,
+    news:[
+      {title:'資源高が商社株に追い風', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/news/stocks', effect:'+8', reason:'エネルギー価格上昇の恩恵期待', cls:'pos'},
+      {title:'世界景気減速懸念は重し', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/news/stocks', effect:'-4', reason:'需要鈍化懸念は一部逆風', cls:'neg'},
+      {title:'高配当期待で下値堅い', source:'Yahoo!ファイナンス', url:'https://finance.yahoo.co.jp/stocks', effect:'+5', reason:'還元期待が需給を支える', cls:'pos'}
+    ],
+    docs:[
+      {title:'TDnet: 決算短信', type:'TDnet', url:'https://www.jpx.co.jp/markets/paid-info-listing/tdnet/02.html', effect:'+6', reason:'利益進捗と還元姿勢を確認', cls:'pos'},
+      {title:'EDINET: 有価証券報告書PDF', type:'EDINET', url:'https://api-catalog.e-gov.go.jp/info/ja/apicatalog/view/33', effect:'+7', reason:'資源・非資源分散が効く', cls:'pos'},
+      {title:'IR: 統合報告書', type:'IR', url:'https://www.mitsubishicorp.com/jp/ja/', effect:'+8', reason:'ポートフォリオ戦略に説得力', cls:'pos'}
+    ],
+    ext:[['資源価格','追い風','+7'],['世界景気','逆風','-3'],['配当期待','追い風','+2']]
+  }
+];
+let current='1605', range='1M', chart;
+function rand(seed){let s=seed;return()=>((s=(s*9301+49297)%233280)/233280)}
+function series(base, code){const r=rand(Number(code)*13+5), p=[], l=[]; let x=base*(0.92+r()*0.18); const end=new Date('2026-04-03'); for(let i=180;i>=0;i--){const d=new Date(end); d.setDate(d.getDate()-i); if([0,6].includes(d.getDay())) continue; x=Math.max(base*0.55, x*(1+(r()-.48)*0.012+(r()-.5)*0.015+(r()>.98?(r()-.5)*0.05:0))); p.push(Math.round(x)); l.push((d.getMonth()+1)+'/'+d.getDate())} return {p,l}}
+function ma(a,n){return a.map((_,i)=>i<n-1?null:Math.round(a.slice(i-n+1,i+1).reduce((x,y)=>x+y,0)/n))}
+function pred(a,b){const r=rand(a[a.length-1]+b), out=[]; let x=a[a.length-1]; const drift=(b-50)/10000; for(let i=0;i<8;i++){x=x*(1+drift+(r()-.5)*0.008); out.push(Math.round(x))} return out}
+function tone(v){return v>=65?'p-ok':v<=45?'p-er':'p-gd'}
+function view(v){return v>=75?'強気':v>=60?'やや強気':v>45?'中立':v>30?'やや弱気':'弱気'}
+function money(v){return '¥'+v.toLocaleString('ja-JP')}
+function filtered(q){return !q?STOCKS:STOCKS.filter(s=>s.name.includes(q)||s.code.includes(q)||s.sector.includes(q))}
+function renderList(arr){const el=document.getElementById('list'); el.innerHTML=arr.map(s=>`<div class="item ${s.code===current?'active':''}" data-code="${s.code}"><div style="font-weight:800;font-size:var(--sm)">${s.name}</div><div class="sub">${s.code} · ${s.sector}</div></div>`).join(''); el.querySelectorAll('.item').forEach(n=>n.onclick=()=>{current=n.dataset.code; update(); renderList(filtered(document.getElementById('search').value));});}
+function update(){
+  const s=STOCKS.find(x=>x.code===current), ser=series(s.base,s.code), n=range==='1M'?22:range==='3M'?66:132, prices=ser.p.slice(-n), labels=ser.l.slice(-n), m5=ma(prices,5), m25=ma(prices,25), preds=pred(prices,s.short), last=prices[prices.length-1], prev=prices[prices.length-2], final=Math.round(s.short*0.40+s.long*0.45+s.risk*0.15);
+  document.getElementById('name').textContent=s.name; document.getElementById('meta').textContent=`${s.code} · ${s.sector} · 個別記事URL・TDnet・EDINET寄与度を表示`; document.getElementById('price').textContent=money(last); document.getElementById('priceDiff').innerHTML=`<span class="${last>=prev?'pos':'neg'}">${last>=prev?'▲':'▼'} ${Math.abs(last-prev).toLocaleString('ja-JP')}</span>`; document.getElementById('short').textContent=s.short+'pt'; document.getElementById('long').textContent=s.long+'pt'; document.getElementById('final').textContent=final+'pt'; document.getElementById('finalText').innerHTML=`<span class="pill ${tone(final)}">${view(final)}</span>`;
+  document.getElementById('newsRows').innerHTML=s.news.map(n=>`<div class="row"><div class="rowhead"><div><div class="rtitle">${n.title}</div><div class="rmeta">${n.reason}</div><div class="rmeta"><a href="${n.url}" target="_blank" rel="noopener noreferrer">記事URLを開く ↗</a></div></div><div class="score ${n.cls==='pos'?'pos':n.cls==='neg'?'neg':'neu'}">${n.effect}pt</div></div><div class="contrib"><span class="pill ${n.cls==='pos'?'p-ok':n.cls==='neg'?'p-er':'p-gd'}">${n.source}</span><span class="pill p-gd">短期寄与</span></div></div>`).join('');
+  document.getElementById('docRows').innerHTML=s.docs.map(d=>`<div class="row"><div class="rowhead"><div><div class="rtitle">${d.title}</div><div class="rmeta">${d.reason}</div><div class="rmeta"><a href="${d.url}" target="_blank" rel="noopener noreferrer">${d.type}リンクを開く ↗</a></div></div><div class="score ${d.cls==='pos'?'pos':d.cls==='neg'?'neg':'neu'}">${d.effect}pt</div></div><div class="contrib"><span class="pill p-gd">${d.type}</span><span class="pill p-ok">長期寄与</span></div></div>`).join('');
+  const rows=[['短期モデル',view(s.short),s.short+'pt','40%'],['長期モデル',view(s.long),s.long+'pt','45%'],['外部リスク',view(s.risk),s.risk+'pt','15%'],...s.ext.map(x=>[x[0],x[1],x[2]+'pt','外部'])];
+  document.getElementById('factorTable').innerHTML=`<div class="tr" style="font-weight:800;color:var(--tm)"><div>要素</div><div>評価</div><div>点</div><div>区分</div></div>`+rows.map(r=>`<div class="tr"><div>${r[0]}</div><div>${r[1]}</div><div class="mono ${String(r[2]).startsWith('-')?'neg':'pos'}">${r[2]}</div><div>${r[3]}</div></div>`).join('');
+  draw(labels,prices,m5,m25,preds);
+}
+function draw(labels,prices,m5,m25,preds){if(chart) chart.destroy(); const s=getComputedStyle(document.documentElement); const all=[...labels,...Array.from({length:preds.length},(_,i)=>'予測'+(i+1))], pricePad=[...prices,...Array(preds.length).fill(null)], pLine=[...Array(prices.length-1).fill(null),prices[prices.length-1],...preds], m5p=[...m5,...Array(preds.length).fill(null)], m25p=[...m25,...Array(preds.length).fill(null)]; chart=new Chart(document.getElementById('chart'),{type:'line',data:{labels:all,datasets:[{label:'株価',data:pricePad,borderColor:s.getPropertyValue('--pr').trim(),borderWidth:2,pointRadius:0,tension:.25},{label:'MA5',data:m5p,borderColor:s.getPropertyValue('--gd').trim(),borderWidth:1.4,pointRadius:0,tension:.25},{label:'MA25',data:m25p,borderColor:s.getPropertyValue('--bl').trim(),borderWidth:1.4,pointRadius:0,tension:.25},{label:'短期予測',data:pLine,borderColor:s.getPropertyValue('--ok').trim(),borderDash:[6,4],borderWidth:2,pointRadius:0,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:s.getPropertyValue('--tm').trim(),boxWidth:12,font:{size:11}}}},scales:{x:{ticks:{color:s.getPropertyValue('--tm').trim(),maxTicksLimit:9,font:{size:11}},grid:{color:s.getPropertyValue('--dv').trim()}},y:{ticks:{color:s.getPropertyValue('--tm').trim(),font:{size:11},callback:v=>'¥'+Number(v).toLocaleString('ja-JP')},grid:{color:s.getPropertyValue('--dv').trim()}}}}})}
+renderList(STOCKS); update();
+document.getElementById('search').addEventListener('input',e=>renderList(filtered(e.target.value)));
+document.querySelectorAll('.range').forEach(b=>b.onclick=()=>{document.querySelectorAll('.range').forEach(x=>x.classList.remove('active')); b.classList.add('active'); range=b.dataset.range; update();});
+document.getElementById('themeBtn').onclick=()=>{document.documentElement.setAttribute('data-theme',document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'); update();};
+</script>
+</body>
+</html>

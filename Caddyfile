@@ -1,0 +1,6 @@
+{$DUCKDNS_HOSTNAME} {
+	# DuckDNSはCloudflareのようなプロキシを挟まないため、
+	# デフォルトのHTTP-01チャレンジで自動的に証明書取得・更新される
+	# （REQUIREMENTS_v2.md 1節/1.2節参照）。
+	reverse_proxy backend:8000
+}

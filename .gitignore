@@ -1,0 +1,23 @@
+# Python
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+
+# 環境変数・秘密情報
+.env
+backend/.env
+frontend/.env
+!.env.example
+
+# 注: nikkei225.json は起動時のフォールバック用シードデータとして意図的にコミットする
+# （初回起動〜6時間ごとのmaster_data_updater実行までの間、銘柄一覧が空にならないようにするため）
+
+# エディタ
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Docker / DB永続化データはボリューム管理のためリポジトリには含めない
+pgdata/

@@ -1,0 +1,55 @@
+# 日本株 売買シグナル基盤 - バックエンド依存パッケージ
+# 技術スタックの選定理由は REQUIREMENTS_v2.md 1.1 / 1.2 を参照。
+#
+# 既存動作確認済みパッケージはインストール済みバージョンに固定。
+# 新規追加パッケージは互換範囲での指定とし、実際のインストール時に
+# requirements.lock 相当（pip freeze）を別途生成することを推奨。
+
+# --- Web framework ---
+fastapi==0.135.3
+uvicorn==0.44.0
+# 注: uvicorn[standard]（uvloop/httptools）は使わない。
+# ARM VM上でのC拡張リスクを避け、個人利用規模では素のasyncioループで十分なため（REQUIREMENTS_v2.md 1.2）。
+pydantic==2.12.5
+
+# --- DB / ORM / マイグレーション ---
+# [asyncio]extraでgreenlet（async対応に必須）を同時に導入
+sqlalchemy[asyncio]>=2.0,<3.0
+alembic>=1.13,<2.0
+asyncpg>=0.29,<1.0
+
+# --- HTTPクライアント / スクレイピング ---
+httpx==0.28.1
+requests==2.33.1
+beautifulsoup4==4.14.3
+feedparser==6.0.12
+
+# --- データ処理 / 株価 ---
+pandas==3.0.2
+numpy==2.4.4
+yfinance==1.2.1
+pandas-ta>=0.3.14b0
+
+# --- 機械学習（フェーズ2以降） ---
+scikit-learn>=1.5,<2.0
+lightgbm>=4.6,<5.0
+
+# --- バックテスト（フェーズ2） ---
+# ライセンス: AGPL-3.0。自分専用利用（REQUIREMENTS_v2.md 6.1）の前提で採用。
+# REQUIREMENTS_v2.md 1.2 参照。
+backtesting>=0.3.3,<0.4
+
+# --- AI連携（既存） ---
+google-genai==1.71.0
+
+# --- 設定・ユーティリティ ---
+python-dotenv==1.2.2
+# 自前認証（署名付きセッションCookie）用。JWTライブラリより依存が少なくシンプル
+itsdangerous>=2.2,<3.0
+
+# --- テスト ---
+pytest>=8.0,<9.0
+pytest-asyncio>=0.24,<1.0
+
+# --- Lint / Format ---
+ruff>=0.6,<1.0
