@@ -10,6 +10,9 @@ backend/.env
 frontend/.env
 !.env.example
 
+# SSH秘密鍵（Oracle CloudのVMアクセス用）
+keys/
+
 # 注: nikkei225.json は起動時のフォールバック用シードデータとして意図的にコミットする
 # （初回起動〜6時間ごとのmaster_data_updater実行までの間、銘柄一覧が空にならないようにするため）
 
