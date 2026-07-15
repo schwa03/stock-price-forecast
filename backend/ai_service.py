@@ -43,7 +43,9 @@ def call_gemini_with_retry(prompt: str) -> str:
         try:
             client = genai.Client(api_key=current_key)
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                # 固定バージョンではなく "latest" エイリアスを使う。
+                # 個別バージョンは新規ユーザー向けに順次廃止されるため（2026-07時点でgemini-2.5-flashは廃止済み）。
+                model='gemini-flash-latest',
                 contents=prompt,
                 config=types.GenerateContentConfig(response_mime_type="application/json")
             )
