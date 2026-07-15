@@ -1,0 +1,10 @@
+{
+  "name": "stock-price-forecast",
+  "compatibility_date": "2026-07-15",
+  "assets": {
+    "directory": "./dist",
+    // React Router等を使わないSPAだが、将来のルーティング追加に備えて
+    // 存在しないパスは index.html にフォールバックさせる
+    "not_found_handling": "single-page-application"
+  }
+}
