@@ -4,9 +4,17 @@ import './index.css';
 import axios from 'axios';
 import LoginScreen from './LoginScreen';
 
-// バックエンドとフロントは別オリジンのため、認証セッションCookieを
-// やり取りするには withCredentials が必須（REQUIREMENTS_v2.md 1節/1.2節参照）
-axios.defaults.withCredentials = true;
+// バックエンドとフロントは別サイト(別オリジン)のため、Cookieベースのセッションは
+// ブラウザのサードパーティCookieブロックにより機能しない。そのためBearerトークン方式とし、
+// localStorageに保存したトークンを全リクエストにAuthorizationヘッダーとして付与する
+// （REQUIREMENTS_v2.md 1節/1.2節参照、2026-07-16改訂）。
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -506,12 +514,18 @@ function App() {
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/auth/status`)
-      .then(res => setAuthState(res.data.authenticated ? 'authenticated' : 'unauthenticated'))
+      .then(res => {
+        if (!res.data.authenticated) localStorage.removeItem('authToken');
+        setAuthState(res.data.authenticated ? 'authenticated' : 'unauthenticated');
+      })
       .catch(() => setAuthState('unauthenticated'));
   }, []);
 
   const handleLogout = () => {
-    axios.post(`${API_BASE}/api/auth/logout`).finally(() => setAuthState('unauthenticated'));
+    axios.post(`${API_BASE}/api/auth/logout`).finally(() => {
+      localStorage.removeItem('authToken');
+      setAuthState('unauthenticated');
+    });
   };
 
   if (authState === 'checking') {

@@ -414,8 +414,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Japan Stock Signal Platform API", lifespan=lifespan)
 
 # --------- CORS ---------
-# 本番ではフロント(Cloudflare Pages)とバック(DuckDNS)がオリジンが異なるため
-# allow_credentials=True + 明示的なオリジン指定が必須（ワイルドカード"*"は使えない）。
+# 本番ではフロント(Cloudflare Workers)とバック(DuckDNS)がオリジンが異なるため
+# 明示的なオリジン指定が必須（ワイルドカード"*"は使えない）。認証はCookieではなく
+# Authorizationヘッダーのトークン方式のため allow_credentials は必須ではないが、
+# 害もないため維持する（2026-07-16改訂）。
 _default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
 _extra_origins = [o.strip() for o in os.getenv("FRONTEND_ORIGIN", "").split(",") if o.strip()]
 app.add_middleware(

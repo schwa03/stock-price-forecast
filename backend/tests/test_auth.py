@@ -31,13 +31,14 @@ def test_login_then_access_protected_route(monkeypatch):
 
     login_res = client.post("/api/auth/login", json={"password": "correct-horse"})
     assert login_res.status_code == 200
-    assert login_res.json() == {"authenticated": True}
+    token = login_res.json()["token"]
+    assert token
 
-    protected_res = client.get("/protected")
+    protected_res = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
     assert protected_res.status_code == 200
 
 
-def test_protected_route_without_session_is_rejected(monkeypatch):
+def test_protected_route_without_token_is_rejected(monkeypatch):
     monkeypatch.setenv("APP_PASSWORD", "correct-horse")
     monkeypatch.setenv("SESSION_SECRET", "test-secret")
     client = TestClient(_build_app())
@@ -46,13 +47,21 @@ def test_protected_route_without_session_is_rejected(monkeypatch):
     assert res.status_code == 401
 
 
-def test_logout_clears_session(monkeypatch):
+def test_protected_route_with_invalid_token_is_rejected(monkeypatch):
+    monkeypatch.setenv("APP_PASSWORD", "correct-horse")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret")
+    client = TestClient(_build_app())
+
+    res = client.get("/protected", headers={"Authorization": "Bearer not-a-real-token"})
+    assert res.status_code == 401
+
+
+def test_logout_reports_unauthenticated(monkeypatch):
     monkeypatch.setenv("APP_PASSWORD", "correct-horse")
     monkeypatch.setenv("SESSION_SECRET", "test-secret")
     client = TestClient(_build_app())
 
     client.post("/api/auth/login", json={"password": "correct-horse"})
-    assert client.get("/protected").status_code == 200
-
-    client.post("/api/auth/logout")
-    assert client.get("/protected").status_code == 401
+    res = client.post("/api/auth/logout")
+    assert res.status_code == 200
+    assert res.json() == {"authenticated": False}

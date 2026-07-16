@@ -14,7 +14,8 @@ export default function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
     setError(null);
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/api/auth/login`, { password });
+      const res = await axios.post(`${API_BASE}/api/auth/login`, { password });
+      localStorage.setItem('authToken', res.data.token);
       onSuccess();
     } catch {
       setError('パスワードが違います');
