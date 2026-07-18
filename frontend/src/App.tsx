@@ -209,8 +209,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     if (!current) return;
     setIsRefreshing(true);
     try {
-      // コアスコア（テクニカル+ML）はGeminiのようなクォータ制約がないため、
-      // 「最新化」ボタンからその場で即座に再計算する（ニュース/開示分析は対象外）
+      // バックエンド側でコアスコア（テクニカル+ML）とニュース/開示分析(Gemini)の両方を
+      // その場で再計算してから応答する（ニュース側は直近取得済みならクールダウンでスキップされる）。
+      // その後にfetchDataで画面表示分をまとめて再取得する
       await axios.post(`${API_BASE}/api/stocks/${current.code}/refresh`).catch(console.error);
       await fetchData();
     } finally {

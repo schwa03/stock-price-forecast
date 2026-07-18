@@ -93,6 +93,10 @@ MASTER_STOCKS: List[StockMaster] = []
 _CORE_PROCESSING: set = set()
 _NEWS_PROCESSING: set = set()
 
+# 手動「最新化」ボタンでニュース/開示分析(Gemini)を強制更新する際のクールダウン。
+# 連打や複数銘柄の閲覧で無料枠クォータを浪費しないための下限間隔（秒）。
+MANUAL_NEWS_REFRESH_COOLDOWN_SECONDS = int(os.getenv("MANUAL_NEWS_REFRESH_COOLDOWN_SECONDS", "600"))
+
 
 # --------- Master data (DB-backed) ---------
 async def sync_master_data_from_json_to_db():
@@ -469,10 +473,13 @@ async def get_stock_summary(code: str, background_tasks: BackgroundTasks, sessio
 
 @api.post("/api/stocks/{code}/refresh", response_model=SignalSummary)
 async def refresh_stock_summary(code: str, session=Depends(get_session)):
-    """「最新化」ボタン専用: コアスコア（テクニカル+ML）をその場で即座に再計算する。
+    """「最新化」ボタン専用: コアスコア（テクニカル+ML）とニュース/開示分析の両方をその場で再計算する。
 
-    Geminiのようなクォータ制約を受けないため、閲覧操作からのオンデマンド実行を許可している
-    （ニュース/開示分析側はこの対象にしない。REQUIREMENTS_v2.md 5.1/6.3参照）。
+    コアスコアはGeminiクォータの制約を受けないため常に即座に再計算する。
+    ニュース/開示分析はGemini無料枠のクォータが極めて限られているため、直近で
+    取得済み（MANUAL_NEWS_REFRESH_COOLDOWN_SECONDS以内）の場合は連打・複数銘柄閲覧による
+    クォータ浪費を防ぐためスキップし、既に取得済みの最新結果をそのまま返す
+    （REQUIREMENTS_v2.md 5.1/6.3参照、2026-07-18改訂）。
     """
     stock = next((s for s in MASTER_STOCKS if s.code == code), None)
     name_ja = stock.name_ja if stock else "該当銘柄"
@@ -481,7 +488,21 @@ async def refresh_stock_summary(code: str, session=Depends(get_session)):
         _CORE_PROCESSING.add(code)
         await update_core_score(code, name_ja)
 
-    row = await session.get(SignalSummaryRow, code)
+    existing_row = await session.get(SignalSummaryRow, code)
+    now_ts = _parse_jst(_jst_now_str())
+    news_is_fresh = (
+        existing_row is not None
+        and (now_ts - _parse_jst(existing_row.news_updated_at)) < MANUAL_NEWS_REFRESH_COOLDOWN_SECONDS
+    )
+    if code not in _NEWS_PROCESSING and not news_is_fresh:
+        _NEWS_PROCESSING.add(code)
+        await update_news_and_docs(code, name_ja)
+        if existing_row is not None:
+            # update_news_and_docs は別セッションでコミットするため、
+            # このセッションのIDマップに残る古いオブジェクトを明示的に最新化する
+            await session.refresh(existing_row)
+
+    row = existing_row
     if row:
         return SignalSummary(
             code=row.code, short_score=row.short_score, long_score=row.long_score,
