@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Component, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { Sun, Moon, Activity, RefreshCw, LogOut } from 'lucide-react';
 import './index.css';
 import axios from 'axios';
@@ -122,6 +122,40 @@ const CHART_PERIODS = [
   { key: '1y', label: '1年', days: 366 },
 ] as const;
 type ChartPeriod = typeof CHART_PERIODS[number]['key'];
+
+// Reactは描画中の例外を捕捉しないと画面全体がアンマウントされ、
+// ダークテーマのbody背景だけが残って「画面が暗転する」ように見える
+// （報告のあった不具合。エラーバウンダリはクラスコンポーネントでしか書けない）。
+// 特定銘柄のデータ欠損等で描画エラーが起きても、エラー内容を表示して
+// 他の銘柄を選び直せるようにする
+interface ErrorBoundaryState {
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    console.error('[ErrorBoundary]', error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--s4)', background: 'var(--bg)', color: 'var(--tx)', padding: 'var(--s6)', textAlign: 'center' }}>
+          <div style={{ fontSize: 'var(--lg)', fontWeight: 800 }}>表示中にエラーが発生しました</div>
+          <div style={{ fontSize: 'var(--sm)', color: 'var(--tm)', maxWidth: '480px' }}>{this.state.error.message}</div>
+          <button className="btn" onClick={() => this.setState({ error: null })}>閉じて元の画面に戻る</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function SkeletonBlock({ width = '100%', height = '1rem' }: { width?: string; height?: string }) {
   return <div className="skeleton" style={{ width, height }} />;
@@ -727,7 +761,11 @@ function App() {
     return <LoginScreen onSuccess={() => setAuthState('authenticated')} />;
   }
 
-  return <AuthenticatedApp onLogout={handleLogout} />;
+  return (
+    <ErrorBoundary>
+      <AuthenticatedApp onLogout={handleLogout} />
+    </ErrorBoundary>
+  );
 }
 
 export default App;
