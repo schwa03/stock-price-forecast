@@ -1,5 +1,5 @@
 # Oracle Cloud Always Free VM上でのバックエンド一式（backend / PostgreSQL / Caddy）。
-# フロントエンドはCloudflare Pagesでホストするためここには含まない。
+# フロントエンドはCloudflare Workers（静的アセット配信）でホストするためここには含まない。
 # 公開経路はDuckDNS（無料ダイナミックDNS）+ Caddy（自動HTTPS）。
 # ドメインを所有しないためCloudflare Tunnel/Accessは使わない方針（REQUIREMENTS_v2.md 1節/1.2節）。
 # 環境変数は同ディレクトリの .env から読み込む（.env.example を参照して作成すること）。
@@ -32,8 +32,11 @@ services:
       EDINET_API_KEY: ${EDINET_API_KEY}
       APP_PASSWORD: ${APP_PASSWORD}
       SESSION_SECRET: ${SESSION_SECRET}
-      # production指定で初めてセッションCookieがSecure/SameSite=Noneになる
-      # （frontend: Cloudflare Pages / backend: DuckDNS はオリジンが異なるため必須。auth.py参照）
+      # 2026-07-16改訂: 認証はCookieではなくAuthorizationヘッダーのBearerトークン方式
+      # （frontend: Cloudflare Workers / backend: DuckDNS はオリジンが異なり、Cookie方式は
+      # サードパーティCookieブロックで機能しなかったため。auth.py参照）。
+      # ENV=production自体は現在トークン方式の挙動には影響しないが、将来production限定の
+      # 設定分岐に備えて維持している
       ENV: production
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
     # 受信ポートは公開しない（Caddyコンテナがリバースプロキシとして前段に立つ）

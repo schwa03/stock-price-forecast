@@ -1,5 +1,7 @@
-# Oracle Cloud Always Free（Ampere/ARM, linux/arm64）での動作を前提とした
-# バックエンド用イメージ。python公式イメージはlinux/arm64のマルチアーキ対応済み。
+# Oracle Cloud Always Free VM用のバックエンドイメージ。
+# 本命はAmpere/ARM(linux/arm64)だが、在庫状況により現在の本番はE2.1.Micro(amd64)で
+# 稼働中（在庫確保後にARMへ移行予定）。python公式イメージは両アーキ対応済みで、
+# CIでもarm64ビルドをQEMUで検証しているため、どちらでも動作する（REQUIREMENTS_v2.md 1.1/1.2参照）。
 FROM python:3.12-slim AS base
 
 WORKDIR /app

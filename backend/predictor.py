@@ -107,10 +107,21 @@ def score_from_return(predicted_return: float) -> int:
 
 
 def score_from_technicals(features: dict) -> int:
-    """短期スコア: RSIをベースに、MACDヒストグラムの符号で微調整する単純なモメンタム指標。"""
+    """短期スコア: RSI・MACD・ボリンジャーバンド%b・MA5乖離率を組み合わせたモメンタム指標。
+
+    2026-07-21改訂: 従来はRSIとMACDの符号のみを使っており、features.pyで計算済みの
+    bb_percent_b・ma5_ratioが短期スコアに一切活用されていなかった。RSIを軸としつつ、
+    他の2指標を軽い調整幅（各±5pt程度）で組み込むことで、計算済みの情報を無駄にせず
+    かつRSIの支配力を大きく変えないようにしている。
+    """
     rsi = features["rsi14"]
     macd_adjustment = 5 if features["macd_hist"] > 0 else -5
-    return max(0, min(100, round(rsi + macd_adjustment)))
+    # bb_percent_b: 0=バンド下限（売られすぎ）〜1=バンド上限（買われすぎ）、0.5が中央
+    bb_adjustment = (features["bb_percent_b"] - 0.5) * 10
+    # ma5_ratio: 5日移動平均からの乖離率。1%あたり1pt、±5ptにクリップ
+    ma5_adjustment = max(-5.0, min(5.0, features["ma5_ratio"] * 100))
+    score = rsi + macd_adjustment + bb_adjustment + ma5_adjustment
+    return max(0, min(100, round(score)))
 
 
 def get_model() -> lgb.Booster | None:

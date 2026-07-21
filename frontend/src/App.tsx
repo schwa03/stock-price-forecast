@@ -54,7 +54,6 @@ interface SignalSummary {
   code: string;
   short_score: number;
   long_score: number;
-  risk_score: number;
   final_score: number;
   final_signal: string;
   updated_at?: string;
@@ -402,6 +401,20 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     return () => clearTimeout(timer);
   }, [summary, fetchData]);
 
+  // バックテストがまだ計算されていない場合のポーリング（2026-07-21追加）。
+  // 従来はここが無く、巡回処理が計算を終えてもページを再読み込みしないと反映されなかった。
+  // バックテスト巡回は1銘柄あたり数十秒〜、全体が一巡するまで数時間かかることもあるため、
+  // 「分析中」ポーリング(3秒)よりずっと長い間隔にする
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (backtest && !backtest.computed) {
+      timer = setTimeout(() => {
+        fetchData();
+      }, 60000);
+    }
+    return () => clearTimeout(timer);
+  }, [backtest, fetchData]);
+
   const filteredStocks = stocks.filter(s => 
     s.name_ja.includes(search) || s.code.includes(search) || s.name_en.toLowerCase().includes(search.toLowerCase())
   );
@@ -428,7 +441,15 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     const periodDays = CHART_PERIODS.find(p => p.key === chartPeriod)?.days ?? 366;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - periodDays);
-    let sliceFrom = chartData.labels.findIndex(l => new Date(l.replace(/\//g, '-')) >= cutoff);
+    // 2026-07-21修正: 以前はラベル文字列("YYYY/MM/DD")をISO風("YYYY-MM-DD")に
+    // 置換してnew Date()に渡していたが、この形式はUTC0時として解釈される一方、
+    // cutoffはブラウザのローカルタイムゾーンで計算されており、JST等UTC+の環境では
+    // 境界で最大1日分ずれる可能性があった。年月日を個別に渡してローカル日付として
+    // 構築することで、cutoffと同じタイムゾーン基準で比較する
+    let sliceFrom = chartData.labels.findIndex(l => {
+      const [y, m, d] = l.split('/').map(Number);
+      return new Date(y, m - 1, d) >= cutoff;
+    });
     if (sliceFrom === -1) sliceFrom = 0;
 
     return {

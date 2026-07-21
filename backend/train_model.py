@@ -23,7 +23,11 @@ from features import FEATURE_NAMES, compute_feature_frame
 
 # 長期投資中心の方針に合わせ、約1ヶ月（20営業日）先のリターンを予測対象にする
 FORWARD_DAYS = 20
-HISTORY_PERIOD = "3y"
+# 2026-07-21改訂: 3年→5年に拡張。(1) backtest_engine.pyが5年分のデータに対して
+# このモデルのパーセンタイル較正を適用しており、学習期間と較正の前提期間を揃える必要が
+# あった。(2) 3年間が強気相場に偏っていたため予測リターンが恒常的にプラス側に偏る問題が
+# あり、より長い期間・多様な相場環境を学習に含めることで軽減を図る。
+HISTORY_PERIOD = "5y"
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "predictor.txt")
 PERCENTILE_PATH = os.path.join(MODEL_DIR, "predictor_percentiles.json")
@@ -60,6 +64,8 @@ def build_training_samples(code: str) -> pd.DataFrame | None:
 
     sample = features.copy()
     sample["label"] = forward_return
+    # 日付ベースの分割（下記main()参照）に使うため、インデックス(日付)を列として保持する
+    sample["date"] = sample.index
     sample = sample.dropna()
     return sample
 
@@ -83,10 +89,18 @@ def main():
     dataset = pd.concat(all_samples, ignore_index=True)
     print(f"Total training samples: {len(dataset)}")
 
-    # 時系列データなのでシャッフルせず、末尾20%を検証用に分ける
+    # 2026-07-21改訂: 銘柄ごとにサンプルを作ってから連結するため、単純に「末尾20%の行」を
+    # 検証用にすると「全銘柄の直近20%期間」ではなく「後ろの方にある一部銘柄の全期間」に
+    # なってしまい、日本株の銘柄間相関を通じて学習データに検証期間の情報が漏れる
+    # （＝時系列分割のつもりが実質できていない）問題があった。
+    # 全サンプルを日付でソートしてから分割することで、真に「学習データより後の日付」だけを
+    # 検証に使う時系列分割にする。
+    dataset = dataset.sort_values("date").reset_index(drop=True)
     split_idx = int(len(dataset) * 0.8)
     train_df = dataset.iloc[:split_idx]
     valid_df = dataset.iloc[split_idx:]
+    print(f"Train period: up to {train_df['date'].max().date()}, "
+          f"Valid period: {valid_df['date'].min().date()} to {valid_df['date'].max().date()}")
 
     train_set = lgb.Dataset(train_df[FEATURE_NAMES], label=train_df["label"])
     valid_set = lgb.Dataset(valid_df[FEATURE_NAMES], label=valid_df["label"], reference=train_set)

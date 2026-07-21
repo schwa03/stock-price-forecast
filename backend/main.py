@@ -53,7 +53,6 @@ class SignalSummary(BaseModel):
     code: str
     short_score: int
     long_score: int
-    risk_score: int
     final_score: int
     final_signal: str
     updated_at: str = ""
@@ -199,7 +198,7 @@ async def _mark_stock_as_errored(code: str):
     try:
         async with session_scope() as session:
             summary_values = dict(
-                short_score=0, long_score=0, risk_score=0,
+                short_score=0, long_score=0,
                 final_score=0, final_signal="error", updated_at=_jst_now_str(),
             )
             stmt = pg_insert(SignalSummaryRow).values(code=code, **summary_values)
@@ -292,7 +291,7 @@ async def update_core_score(code: str, name_ja: str):
                 await session.execute(stmt)
 
             summary_values = dict(
-                short_score=short_score, long_score=long_score, risk_score=50,
+                short_score=short_score, long_score=long_score,
                 final_score=final_score, final_signal=final_signal, updated_at=_jst_now_str(),
             )
             stmt = pg_insert(SignalSummaryRow).values(code=code, news_updated_at="", **summary_values)
@@ -346,7 +345,7 @@ async def update_news_and_docs(code: str, name_ja: str):
             # 既に行がある場合は news_updated_at 以外の列を上書きしない（コアスコアを壊さないため）
             news_updated_at = _jst_now_str()
             stmt = pg_insert(SignalSummaryRow).values(
-                code=code, short_score=50, long_score=50, risk_score=50,
+                code=code, short_score=50, long_score=50,
                 final_score=50, final_signal="analyzing...", updated_at="",
                 news_updated_at=news_updated_at,
             )
@@ -410,7 +409,7 @@ async def update_news_and_docs_batch(stocks: list[tuple[str, str]]):
                 ])
 
                 stmt = pg_insert(SignalSummaryRow).values(
-                    code=code, short_score=50, long_score=50, risk_score=50,
+                    code=code, short_score=50, long_score=50,
                     final_score=50, final_signal="analyzing...", updated_at="",
                     news_updated_at=news_updated_at,
                 )
@@ -512,7 +511,12 @@ async def autonomous_core_crawler():
                 target_stock = stock_queue[0][0]
                 _CORE_PROCESSING.add(target_stock.code)
                 print(f"[CORE_CRAWLER] Auto-updating: {target_stock.code}")
-                asyncio.create_task(update_core_score(target_stock.code, target_stock.name_ja))
+                # 2026-07-21改訂: asyncio.create_task（fire-and-forget）だと、1件の処理が
+                # sleep_durationより長くかかった場合に次々とタスクが積み上がり、非力なVM
+                # （1/8 OCPU）でリソース枯渇を起こすリスクがあった。await で逐次実行することで
+                # 「常に同時実行数は最大1」を保証する（一周の所要時間は伸びるが、日次更新で
+                # 十分という方針には影響しない）。
+                await update_core_score(target_stock.code, target_stock.name_ja)
 
         await asyncio.sleep(sleep_duration)
 
@@ -563,7 +567,9 @@ async def autonomous_news_crawler():
                     _NEWS_PROCESSING.add(code)
                 print(f"[NEWS_CRAWLER] Auto-updating batch of {len(target_stocks)}: "
                       f"{[c for c, _ in target_stocks]} (Wait: {sleep_duration:.1f}s)")
-                asyncio.create_task(update_news_and_docs_batch(target_stocks))
+                # 2026-07-21改訂: 同時実行数を最大1に保つためawaitで逐次実行する
+                # （autonomous_core_crawler参照。理由も同様）
+                await update_news_and_docs_batch(target_stocks)
 
         await asyncio.sleep(sleep_duration)
 
@@ -585,10 +591,11 @@ async def autonomous_macro_news_crawler():
 async def autonomous_backtest_crawler():
     """本番と同じルールを過去データに適用し、実際のバックテスト結果を巡回更新するループ。
 
-    1銘柄あたりのCPUコストが高い（5年分の特徴量計算＋モデル推論）ため、
-    コアスコアの巡回（3秒間隔）よりずっと長い間隔で回す。
+    1銘柄あたりのCPUコストが高い（5年分の特徴量計算＋モデル推論＋バックテスト実行）ため、
+    コアスコアの巡回より長い間隔で回す（2026-07-21改訂: 30秒→60秒。同時実行数制限とあわせ、
+    非力なVM（1/8 OCPU）でのリソース枯渇を避けるため）。
     """
-    sleep_duration = 30.0
+    sleep_duration = 60.0
     while True:
         if MASTER_STOCKS:
             async with session_scope() as session:
@@ -609,7 +616,9 @@ async def autonomous_backtest_crawler():
                 target_stock = stock_queue[0][0]
                 _BACKTEST_PROCESSING.add(target_stock.code)
                 print(f"[BACKTEST_CRAWLER] Auto-updating: {target_stock.code}")
-                asyncio.create_task(update_backtest_result(target_stock.code))
+                # 2026-07-21改訂: 同時実行数を最大1に保つためawaitで逐次実行する
+                # （autonomous_core_crawler参照。理由も同様。特にバックテストは最も重い処理のため重要）
+                await update_backtest_result(target_stock.code)
 
         await asyncio.sleep(sleep_duration)
 
@@ -681,7 +690,7 @@ async def get_stock_summary(code: str, background_tasks: BackgroundTasks, sessio
     if row and row.final_signal != "analyzing...":
         return SignalSummary(
             code=row.code, short_score=row.short_score, long_score=row.long_score,
-            risk_score=row.risk_score, final_score=row.final_score,
+            final_score=row.final_score,
             final_signal=row.final_signal, updated_at=row.updated_at,
         )
 
@@ -701,7 +710,7 @@ async def get_stock_summary(code: str, background_tasks: BackgroundTasks, sessio
 
     return SignalSummary(
         code=code, short_score=0, long_score=0,
-        risk_score=0, final_score=0, final_signal="analyzing...",
+        final_score=0, final_signal="analyzing...",
         updated_at="推論中"
     )
 
@@ -740,12 +749,12 @@ async def refresh_stock_summary(code: str, session=Depends(get_session)):
     if row:
         return SignalSummary(
             code=row.code, short_score=row.short_score, long_score=row.long_score,
-            risk_score=row.risk_score, final_score=row.final_score,
+            final_score=row.final_score,
             final_signal=row.final_signal, updated_at=row.updated_at,
         )
     return SignalSummary(
         code=code, short_score=0, long_score=0,
-        risk_score=0, final_score=0, final_signal="analyzing...",
+        final_score=0, final_signal="analyzing...",
         updated_at="推論中"
     )
 
@@ -839,7 +848,7 @@ async def get_recommendations(term: str = "medium", session=Depends(get_session)
     )).scalars().all()
     valid_stocks = [
         SignalSummary(code=r.code, short_score=r.short_score, long_score=r.long_score,
-                       risk_score=r.risk_score, final_score=r.final_score,
+                       final_score=r.final_score,
                        final_signal=r.final_signal, updated_at=r.updated_at)
         for r in rows
     ]

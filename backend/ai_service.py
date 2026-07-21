@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import threading
 import time
 import urllib.parse
@@ -11,6 +12,24 @@ import feedparser
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _parse_json_lenient(text: str):
+    """Geminiのレスポンスをできるだけ寛容にJSONとしてパースする。
+
+    response_mime_type="application/json"を指定していても、稀に```json ... ```の
+    コードフェンスで囲まれて返ってくることがあり、そのままjson.loadsすると構文エラーに
+    なる（実際に本番ログで"Expecting ',' delimiter"等の構文エラーを確認済み）。
+    まず素直にパースを試み、失敗したらコードフェンスを取り除いて再試行する。
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            stripped = re.sub(r"^```[a-zA-Z]*\n?", "", stripped)
+            stripped = re.sub(r"\n?```$", "", stripped)
+        return json.loads(stripped.strip())
 
 _API_KEYS = []
 _CURRENT_KEY_INDEX = 0
@@ -106,7 +125,7 @@ def extract_news_facts(code: str, name_ja: str, news_list: List[Dict]) -> List[D
 
     try:
         text = call_gemini_with_retry(prompt)
-        return json.loads(text)
+        return _parse_json_lenient(text)
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
@@ -166,7 +185,7 @@ def extract_macro_facts(news_list: List[Dict]) -> List[Dict]:
 
     try:
         text = call_gemini_with_retry(prompt)
-        return json.loads(text)
+        return _parse_json_lenient(text)
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
@@ -198,7 +217,7 @@ def extract_docs_facts(code: str, name_ja: str) -> List[Dict]:
 
     try:
         text = call_gemini_with_retry(prompt)
-        return json.loads(text)
+        return _parse_json_lenient(text)
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
@@ -247,7 +266,7 @@ def extract_news_facts_batch(stocks: List[Dict]) -> Dict[str, List[Dict]]:
 
     try:
         text = call_gemini_with_retry(prompt)
-        parsed = json.loads(text)
+        parsed = _parse_json_lenient(text)
         return {s["code"]: parsed.get(s["code"], []) for s in stocks}
     except Exception as e:
         error_msg = str(e)
@@ -286,7 +305,7 @@ def extract_docs_facts_batch(stocks: List[Dict]) -> Dict[str, List[Dict]]:
 
     try:
         text = call_gemini_with_retry(prompt)
-        parsed = json.loads(text)
+        parsed = _parse_json_lenient(text)
         return {s["code"]: parsed.get(s["code"], []) for s in stocks}
     except Exception as e:
         error_msg = str(e)

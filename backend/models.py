@@ -28,7 +28,6 @@ class SignalSummaryRow(Base):
     code: Mapped[str] = mapped_column(String(16), primary_key=True)
     short_score: Mapped[int] = mapped_column(Integer)
     long_score: Mapped[int] = mapped_column(Integer)
-    risk_score: Mapped[int] = mapped_column(Integer)
     final_score: Mapped[int] = mapped_column(Integer)
     final_signal: Mapped[str] = mapped_column(String(16))
     # 既存フロントの `updated_at.split(' ')[1]` 前提を崩さないため、

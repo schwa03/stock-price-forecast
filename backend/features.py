@@ -31,7 +31,12 @@ def _rsi(close: pd.Series, length: int = 14) -> pd.Series:
     avg_loss = loss.ewm(alpha=1 / length, min_periods=length, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0, pd.NA)
     rsi = 100 - (100 / (1 + rs))
-    return rsi.fillna(50.0)
+    rsi = rsi.fillna(50.0)
+    # avg_loss=0（窓内に下落日が皆無の強い上昇トレンド）の場合、上の式ではNaN経由で
+    # 中立(50)に丸められてしまうが、理論上のRSIは100（最大の買われすぎ）が正しいため補正する。
+    # avg_gainも0（値動きが全くない）の場合は中立50のままで問題ない
+    rsi = rsi.where(~((avg_loss == 0) & (avg_gain > 0)), 100.0)
+    return rsi
 
 
 def _macd_histogram(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
