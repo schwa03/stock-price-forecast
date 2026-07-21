@@ -85,6 +85,26 @@ interface FundamentalsResponse {
   computed: boolean;
 }
 
+interface SignalAccuracy {
+  count: number;
+  avg_actual_return: number | null;
+  hit_rate: number | null;
+}
+
+interface ModelValidationReport {
+  computed: boolean;
+  train_until: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  test_from: string | null;
+  test_until: string | null;
+  mae: number | null;
+  total_test_samples: number | null;
+  buy: SignalAccuracy | null;
+  sell: SignalAccuracy | null;
+  neutral: SignalAccuracy | null;
+}
+
 interface NewsInfo {
   title: string;
   source: string;
@@ -171,6 +191,7 @@ function SkeletonBlock({ width = '100%', height = '1rem' }: { width?: string; he
 function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; stocks: StockMaster[] }) {
   const [term, setTerm] = useState<RankingTerm>('medium');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
+  const [validation, setValidation] = useState<ModelValidationReport | null>(null);
   const nameByCode = useMemo(() => new Map(stocks.map(s => [s.code, s.name_ja])), [stocks]);
 
   useEffect(() => {
@@ -182,6 +203,11 @@ function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; st
     const timer = setInterval(fetchRanking, 180000);
     return () => clearInterval(timer);
   }, [term]);
+
+  // モデルの実績（週1回の再学習でしか変わらないため、1回だけ取得すれば十分）
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/model-validation`).then(res => setValidation(res.data)).catch(console.error);
+  }, []);
 
   // タブ切り替え時のリセットはイベントハンドラ側で行う
   // （Effect内で直接setStateを呼ぶとカスケードレンダリングになるため避ける。selectStockと同じ方針）
@@ -282,6 +308,46 @@ function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; st
         <p style={{ color: 'var(--tm)', fontSize: 'var(--xs)', marginBottom: 'var(--s5)' }}>
           表示中の銘柄のうち最も古い更新は {oldestUpdatedAt} 時点です。このランキングは{oldestUpdatedAt}までのデータに基づいて算出しています。
         </p>
+      )}
+
+      {/* モデルの実績（過去データでの検証）。学習・調整に一切使っていないテスト期間で、
+          シグナル通りに判断していたら実際どうだったかを示す信頼度の目安（ユーザー要望により追加） */}
+      {validation && validation.computed && (
+        <div className="card" style={{ padding: 'var(--s5)', marginBottom: 'var(--s4)' }}>
+          <div style={{ fontSize: 'var(--xs)', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tf)', fontWeight: 800, marginBottom: 'var(--s2)' }}>モデルの実績（過去データでの検証）</div>
+          <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginBottom: 'var(--s3)' }}>
+            学習・調整に一切使っていない期間（{validation.test_from}〜{validation.test_until}）で、実際にシグナル通りだったかを検証した結果です。
+            平均予測誤差(MAE): {validation.mae != null ? (validation.mae * 100).toFixed(2) : '---'}%
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 'var(--s4)' }}>
+            <div>
+              <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>買いシグナル的中率</div>
+              <div className="mono pos" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>
+                {validation.buy?.hit_rate != null ? `${(validation.buy.hit_rate * 100).toFixed(0)}%` : '---'}
+              </div>
+              <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>n={validation.buy?.count ?? 0}件</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>売りシグナル的中率</div>
+              <div className="mono neg" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>
+                {validation.sell?.hit_rate != null ? `${(validation.sell.hit_rate * 100).toFixed(0)}%` : '---'}
+              </div>
+              <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>n={validation.sell?.count ?? 0}件</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>買い後の平均実リターン</div>
+              <div className="mono" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>
+                {validation.buy?.avg_actual_return != null ? `${(validation.buy.avg_actual_return * 100).toFixed(2)}%` : '---'}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>売り後の平均実リターン</div>
+              <div className="mono" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>
+                {validation.sell?.avg_actual_return != null ? `${(validation.sell.avg_actual_return * 100).toFixed(2)}%` : '---'}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <div style={{display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap'}}>

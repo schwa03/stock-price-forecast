@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+import predictor
 from features import FEATURE_NAMES, compute_feature_frame
 
 # 長期投資中心の方針に合わせ、約1ヶ月（20営業日）先のリターンを予測対象にする
@@ -31,6 +32,7 @@ HISTORY_PERIOD = "5y"
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "predictor.txt")
 PERCENTILE_PATH = os.path.join(MODEL_DIR, "predictor_percentiles.json")
+VALIDATION_REPORT_PATH = os.path.join(MODEL_DIR, "predictor_validation_report.json")
 
 
 def load_master_stock_codes() -> list[str]:
@@ -94,13 +96,22 @@ def main():
     # なってしまい、日本株の銘柄間相関を通じて学習データに検証期間の情報が漏れる
     # （＝時系列分割のつもりが実質できていない）問題があった。
     # 全サンプルを日付でソートしてから分割することで、真に「学習データより後の日付」だけを
-    # 検証に使う時系列分割にする。
+    # 検証・テストに使う時系列分割にする。
+    #
+    # 2026-07-21さらに改訂: 2分割（train/valid）だとvalid_dfが早期終了の判定と
+    # パーセンタイル較正の両方に使われてしまい、その同じvalid_dfで的中率レポートも
+    # 作るとモデル調整済みのデータで成績を測ることになり甘く出る（ユーザー指摘により発覚）。
+    # 学習(70%)・検証(15%、早期終了+パーセンタイル較正専用)・テスト(15%、最新期間・
+    # 一切調整に使わず的中率レポート専用)の3分割にする。
     dataset = dataset.sort_values("date").reset_index(drop=True)
-    split_idx = int(len(dataset) * 0.8)
-    train_df = dataset.iloc[:split_idx]
-    valid_df = dataset.iloc[split_idx:]
+    train_end = int(len(dataset) * 0.7)
+    valid_end = int(len(dataset) * 0.85)
+    train_df = dataset.iloc[:train_end]
+    valid_df = dataset.iloc[train_end:valid_end]
+    test_df = dataset.iloc[valid_end:]
     print(f"Train period: up to {train_df['date'].max().date()}, "
-          f"Valid period: {valid_df['date'].min().date()} to {valid_df['date'].max().date()}")
+          f"Valid period: {valid_df['date'].min().date()} to {valid_df['date'].max().date()}, "
+          f"Test period: {test_df['date'].min().date()} to {test_df['date'].max().date()}")
 
     train_set = lgb.Dataset(train_df[FEATURE_NAMES], label=train_df["label"])
     valid_set = lgb.Dataset(valid_df[FEATURE_NAMES], label=valid_df["label"], reference=train_set)
@@ -140,6 +151,53 @@ def main():
     with open(PERCENTILE_PATH, "w", encoding="utf-8") as f:
         json.dump({"percentile_ranks": percentile_ranks, "percentile_values": percentile_values}, f)
     print(f"Percentile calibration saved to {PERCENTILE_PATH}")
+
+    # シグナル的中率レポート: train/validどちらにも一切使っていないtest_df（最新期間）に対し、
+    # 本番と全く同じロジック（predictor.py）でシグナルを再現し、実際の株価変動と比較する。
+    # 「アプリの買い/売り判定をどの程度信頼できるか」の目安をユーザーに示すための指標。
+    # early stopping・パーセンタイル較正のどちらにも使っていないデータで測ることで、
+    # モデル調整済みのデータで測る楽観的なバイアスを避ける（ユーザー指摘により3分割に変更）。
+    test_preds = booster.predict(test_df[FEATURE_NAMES])
+    long_scores = [
+        max(0, min(100, round(float(np.interp(p, percentile_values, percentile_ranks)))))
+        for p in test_preds
+    ]
+    short_scores = [
+        predictor.score_from_technicals(row) for row in test_df[FEATURE_NAMES].to_dict("records")
+    ]
+    final_scores = [predictor.combine_scores(s, l) for s, l in zip(short_scores, long_scores)]
+    signal_labels = np.array([predictor.classify_signal(fs) for fs in final_scores])
+    actual_returns = test_df["label"].to_numpy()
+
+    report = {
+        "train_until": str(train_df["date"].max().date()),
+        "valid_from": str(valid_df["date"].min().date()),
+        "valid_until": str(valid_df["date"].max().date()),
+        "test_from": str(test_df["date"].min().date()),
+        "test_until": str(test_df["date"].max().date()),
+        "mae": round(float(mae), 4),
+        "total_test_samples": int(len(test_df)),
+    }
+    for sig in ("buy", "sell", "neutral"):
+        mask = signal_labels == sig
+        count = int(mask.sum())
+        avg_return = float(actual_returns[mask].mean()) if count > 0 else None
+        if count > 0 and sig == "buy":
+            hit_rate = float((actual_returns[mask] > 0).mean())
+        elif count > 0 and sig == "sell":
+            hit_rate = float((actual_returns[mask] < 0).mean())
+        else:
+            hit_rate = None
+        report[sig] = {
+            "count": count,
+            "avg_actual_return": round(avg_return, 4) if avg_return is not None else None,
+            "hit_rate": round(hit_rate, 4) if hit_rate is not None else None,
+        }
+
+    with open(VALIDATION_REPORT_PATH, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+    print(f"Validation report (test-set signal accuracy) saved to {VALIDATION_REPORT_PATH}")
+    print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

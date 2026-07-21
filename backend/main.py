@@ -104,6 +104,24 @@ class FundamentalsResponse(BaseModel):
     earnings_growth: Optional[float] = None
     computed: bool = False
 
+class SignalAccuracy(BaseModel):
+    count: int
+    avg_actual_return: Optional[float] = None
+    hit_rate: Optional[float] = None
+
+class ModelValidationReport(BaseModel):
+    computed: bool = False
+    train_until: Optional[str] = None
+    valid_from: Optional[str] = None
+    valid_until: Optional[str] = None
+    test_from: Optional[str] = None
+    test_until: Optional[str] = None
+    mae: Optional[float] = None
+    total_test_samples: Optional[int] = None
+    buy: Optional[SignalAccuracy] = None
+    sell: Optional[SignalAccuracy] = None
+    neutral: Optional[SignalAccuracy] = None
+
 # --------- Global State ---------
 # 銘柄マスターは高速な一覧表示のためインメモリにも保持するが、
 # 正本はDB（stock_master）。再起動時はDBから読み直す（REQUIREMENTS_v2.md 5.5）。
@@ -818,6 +836,20 @@ async def get_stock_fundamentals(code: str, session=Depends(get_session)):
             dividend_yield=row.dividend_yield, earnings_growth=row.earnings_growth, computed=True,
         )
     return FundamentalsResponse(code=code, computed=False)
+
+_VALIDATION_REPORT_PATH = os.path.join(os.path.dirname(__file__), "model", "predictor_validation_report.json")
+
+
+@api.get("/api/model-validation", response_model=ModelValidationReport)
+def get_model_validation():
+    """train_model.pyが生成した、モデル調整に一切使っていないテスト期間での
+    シグナル的中率レポートを返す（ユーザーがアプリのシグナルをどの程度信頼できるかの目安）。
+    """
+    if not os.path.exists(_VALIDATION_REPORT_PATH):
+        return ModelValidationReport(computed=False)
+    with open(_VALIDATION_REPORT_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    return ModelValidationReport(computed=True, **data)
 
 @api.get("/api/stocks/{code}/backtest", response_model=BacktestResult)
 async def get_stock_backtest(code: str, session=Depends(get_session)):
