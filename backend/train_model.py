@@ -15,6 +15,7 @@ import os
 import sys
 
 import lightgbm as lgb
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -25,6 +26,7 @@ FORWARD_DAYS = 20
 HISTORY_PERIOD = "3y"
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 MODEL_PATH = os.path.join(MODEL_DIR, "predictor.txt")
+PERCENTILE_PATH = os.path.join(MODEL_DIR, "predictor_percentiles.json")
 
 
 def load_master_stock_codes() -> list[str]:
@@ -113,6 +115,17 @@ def main():
     preds = booster.predict(valid_df[FEATURE_NAMES])
     mae = (preds - valid_df["label"]).abs().mean()
     print(f"Validation MAE (predicted vs actual {FORWARD_DAYS}-day return): {mae:.4f}")
+    print(f"Validation prediction range: min={preds.min():.4f} max={preds.max():.4f} mean={preds.mean():.4f}")
+
+    # 予測リターンを0-100スコアに変換する際の較正データ（predictor.score_from_return参照）。
+    # 検証用データ（学習に使っていない、時系列で後ろ20%）への予測分布を使うことで、
+    # モデルの予測に系統的な偏り（例: 学習期間が強気相場だったため予測が全体的にプラスに
+    # 寄る）があっても、実運用時の推論と同じ条件でのパーセンタイルを較正できる。
+    percentile_ranks = list(range(0, 101, 5))
+    percentile_values = np.percentile(preds, percentile_ranks).tolist()
+    with open(PERCENTILE_PATH, "w", encoding="utf-8") as f:
+        json.dump({"percentile_ranks": percentile_ranks, "percentile_values": percentile_values}, f)
+    print(f"Percentile calibration saved to {PERCENTILE_PATH}")
 
 
 if __name__ == "__main__":
