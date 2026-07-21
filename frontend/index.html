@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja" translate="no">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
+    <!-- ブラウザの自動翻訳（Google翻訳等）が動的に描画されるDOMを書き換え、
+         Reactの再描画と衝突して「removeChild: ノードが子ではありません」という
+         クラッシュを引き起こすことがあるため、翻訳対象から除外する -->
+    <meta name="google" content="notranslate" />
+    <title>日本株 売買シグナル基盤</title>
   </head>
   <body>
     <div id="root"></div>
