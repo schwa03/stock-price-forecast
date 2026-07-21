@@ -24,12 +24,20 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 import ai_service
 import auth
+import backtest_engine
 import fetch_nikkei225
 import internal_ai
 import predictor
 from db import get_session, session_scope
 from features import latest_feature_vector
-from models import ChartDataRow, DocItemRow, NewsItemRow, SignalSummaryRow, StockMasterRow
+from models import (
+    BacktestResultRow,
+    ChartDataRow,
+    DocItemRow,
+    NewsItemRow,
+    SignalSummaryRow,
+    StockMasterRow,
+)
 
 
 # --------- Schemas ---------
@@ -76,6 +84,7 @@ class BacktestResult(BaseModel):
     win_rate: float
     avg_return: float
     max_drawdown: float
+    computed: bool = False  # 実データでの計算がまだ終わっていない場合はFalse（フロントで区別表示するため）
 
 class ChartResponse(BaseModel):
     code: str
@@ -92,6 +101,7 @@ MASTER_STOCKS: List[StockMaster] = []
 # 動くため、「処理中」フラグも別々に持つ（REQUIREMENTS_v2.md 2.2/2.3参照）。
 _CORE_PROCESSING: set = set()
 _NEWS_PROCESSING: set = set()
+_BACKTEST_PROCESSING: set = set()
 
 # 手動「最新化」ボタンでニュース/開示分析(Gemini)を強制更新する際のクールダウン。
 # 連打や複数銘柄の閲覧で無料枠クォータを浪費しないための下限間隔（秒）。
@@ -227,14 +237,10 @@ async def update_core_score(code: str, name_ja: str):
             predicted_return = predictor.predict_forward_return(features)
             long_score = predictor.score_from_return(predicted_return)
 
-        # 投資スタイルは短期・長期を均等評価（REQUIREMENTS_v2.md 2.2/決定事項サマリー参照）
-        final_score = round(short_score * 0.5 + long_score * 0.5)
-        if final_score >= 60:
-            final_signal = "buy"
-        elif final_score <= 45:
-            final_signal = "sell"
-        else:
-            final_signal = "neutral"
+        # 投資スタイルは短期・長期を均等評価（REQUIREMENTS_v2.md 2.2/決定事項サマリー参照）。
+        # バックテスト側（backtest_engine.py）と同じ関数を使い、ルールの再現性を担保する
+        final_score = predictor.combine_scores(short_score, long_score)
+        final_signal = predictor.classify_signal(final_score)
 
         async with session_scope() as session:
             if chart_row is not None:
@@ -316,6 +322,39 @@ async def update_news_and_docs(code: str, name_ja: str):
         _NEWS_PROCESSING.discard(code)
 
 
+async def update_backtest_result(code: str):
+    """過去データに対し本番と同じスコアリングルールを再現し、実際の売買をシミュレートする。
+
+    yfinanceでの5年分データ取得＋特徴量計算＋モデル推論をすべて含むため、
+    コアスコア（数秒）と比べて1銘柄あたり数秒〜十数秒程度かかる。
+    Geminiクォータには関係しないが、CPU負荷が高いため独立した低頻度ループで回す
+    （REQUIREMENTS_v2.md 2.2/3.3参照）。
+    """
+    try:
+        result = await asyncio.to_thread(backtest_engine.run_backtest, code)
+        if result is None:
+            print(f"[BACKTEST] {code}: insufficient data, skipped")
+            return
+
+        async with session_scope() as session:
+            values = dict(
+                trades=result["trades"], win_rate=result["win_rate"],
+                avg_return=result["avg_return"], max_drawdown=result["max_drawdown"],
+                updated_at=_jst_now_str(),
+            )
+            stmt = pg_insert(BacktestResultRow).values(stock_code=code, **values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[BacktestResultRow.stock_code],
+                set_=values,
+            )
+            await session.execute(stmt)
+            await session.commit()
+    except Exception as e:
+        print(f"update_backtest_result failed for {code}:", e)
+    finally:
+        _BACKTEST_PROCESSING.discard(code)
+
+
 async def autonomous_core_crawler():
     """テクニカル+MLでコアスコアを高速に巡回更新するループ（Geminiクォータの影響を受けない）。"""
     # 225銘柄を無理なく1日に何周もできる程度の間隔（yfinance側への配慮も兼ねる）
@@ -388,6 +427,39 @@ async def autonomous_news_crawler():
 
         await asyncio.sleep(sleep_duration)
 
+
+async def autonomous_backtest_crawler():
+    """本番と同じルールを過去データに適用し、実際のバックテスト結果を巡回更新するループ。
+
+    1銘柄あたりのCPUコストが高い（5年分の特徴量計算＋モデル推論）ため、
+    コアスコアの巡回（3秒間隔）よりずっと長い間隔で回す。
+    """
+    sleep_duration = 30.0
+    while True:
+        if MASTER_STOCKS:
+            async with session_scope() as session:
+                results = {
+                    r.stock_code: r for r in (await session.execute(select(BacktestResultRow))).scalars().all()
+                }
+
+            stock_queue = []
+            for s in MASTER_STOCKS:
+                if s.code in _BACKTEST_PROCESSING:
+                    continue
+                result = results.get(s.code)
+                timestamp = _parse_jst(result.updated_at) if result else 0.0
+                stock_queue.append((s, timestamp))
+
+            if stock_queue:
+                stock_queue.sort(key=lambda x: x[1])
+                target_stock = stock_queue[0][0]
+                _BACKTEST_PROCESSING.add(target_stock.code)
+                print(f"[BACKTEST_CRAWLER] Auto-updating: {target_stock.code}")
+                asyncio.create_task(update_backtest_result(target_stock.code))
+
+        await asyncio.sleep(sleep_duration)
+
+
 async def master_data_updater():
     """6時間ごとに225銘柄のリストを再取得し検証する"""
     while True:
@@ -405,13 +477,15 @@ async def master_data_updater():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await load_master_data()
-    # 自律クローラータスクの起動（コアスコアとニュース分析は独立したループ。REQUIREMENTS_v2.md 2.2/2.3参照）
+    # 自律クローラータスクの起動（コアスコア・ニュース分析・バックテストは独立したループ。REQUIREMENTS_v2.md 2.2/2.3参照）
     core_crawler_task = asyncio.create_task(autonomous_core_crawler())
     news_crawler_task = asyncio.create_task(autonomous_news_crawler())
+    backtest_crawler_task = asyncio.create_task(autonomous_backtest_crawler())
     updater_task = asyncio.create_task(master_data_updater())
     yield
     core_crawler_task.cancel()
     news_crawler_task.cancel()
+    backtest_crawler_task.cancel()
     updater_task.cancel()
 
 
@@ -553,10 +627,16 @@ async def get_stock_chart(code: str, session=Depends(get_session)):
     return ChartResponse(code=code, labels=[], prices=[], ma5=[], ma25=[])
 
 @api.get("/api/stocks/{code}/backtest", response_model=BacktestResult)
-def get_stock_backtest(code: str):
-    return BacktestResult(
-        code=code, trades=45, win_rate=65.5, avg_return=2.3, max_drawdown=-12.5
-    )
+async def get_stock_backtest(code: str, session=Depends(get_session)):
+    row = await session.get(BacktestResultRow, code)
+    if row:
+        return BacktestResult(
+            code=code, trades=row.trades, win_rate=row.win_rate,
+            avg_return=row.avg_return, max_drawdown=row.max_drawdown, computed=True,
+        )
+    # まだ巡回が到達していない銘柄（1銘柄あたりのバックテストは重いため、
+    # コアスコアと違って閲覧操作からトリガーはしない。REQUIREMENTS_v2.md 5.1参照）
+    return BacktestResult(code=code, trades=0, win_rate=0, avg_return=0, max_drawdown=0, computed=False)
 
 @api.get("/api/recommendations", response_model=RankingResponse)
 async def get_recommendations(session=Depends(get_session)):

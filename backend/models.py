@@ -6,7 +6,7 @@ main.pyの既存Pydanticスキーマ（StockMaster / SignalSummary / NewsInfo / 
 ChartResponse）に対応する永続化テーブル。
 """
 
-from sqlalchemy import Integer, String
+from sqlalchemy import Float, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -64,6 +64,17 @@ class DocItemRow(Base):
     effect: Mapped[str] = mapped_column(String(16))
     reason: Mapped[str] = mapped_column(String(1024))
     cls: Mapped[str] = mapped_column(String(16))
+
+
+class BacktestResultRow(Base):
+    __tablename__ = "backtest_result"
+
+    stock_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    trades: Mapped[int] = mapped_column(Integer, default=0)
+    win_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_return: Mapped[float] = mapped_column(Float, default=0.0)
+    max_drawdown: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[str] = mapped_column(String(32), default="")
 
 
 class ChartDataRow(Base):

@@ -68,3 +68,27 @@ def score_from_technicals(features: dict) -> int:
     rsi = features["rsi14"]
     macd_adjustment = 5 if features["macd_hist"] > 0 else -5
     return max(0, min(100, round(rsi + macd_adjustment)))
+
+
+def get_model() -> lgb.Booster | None:
+    """読み込み済み（または未学習でNone）のモデルを取得する。backtest_engine.py等の外部から使う。"""
+    return _load_model()
+
+
+# 短期・長期スコアの合成と売買判定（REQUIREMENTS_v2.md 2.2: 50:50均等評価）。
+# main.pyの本番スコアリングとbacktest_engine.pyの過去再現の両方から使い、
+# ロジックが二重管理でずれないようにする。
+BUY_THRESHOLD = 60
+SELL_THRESHOLD = 45
+
+
+def combine_scores(short_score: int, long_score: int) -> int:
+    return round(short_score * 0.5 + long_score * 0.5)
+
+
+def classify_signal(final_score: int) -> str:
+    if final_score >= BUY_THRESHOLD:
+        return "buy"
+    if final_score <= SELL_THRESHOLD:
+        return "sell"
+    return "neutral"

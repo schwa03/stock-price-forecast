@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Sun, Moon, Activity, RefreshCw, LogOut } from 'lucide-react';
 import './index.css';
 import axios from 'axios';
@@ -68,6 +68,7 @@ interface BacktestResult {
   win_rate: number;
   avg_return: number;
   max_drawdown: number;
+  computed: boolean;
 }
 
 interface ChartResponse {
@@ -97,6 +98,21 @@ interface DocInfo {
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
+// Chart.jsはCanvas描画のため、CSSのカスケード外にあるvar()を解決できない
+// (index.cssのCSS変数をそのまま渡すと無効な色として無視され、既定の黒で描画される)。
+// そのためテーマごとの実際の色をここに複製して使う（値はindex.cssの--tm/--dvと合わせること）。
+const CHART_THEME_COLORS: Record<string, { tick: string; grid: string }> = {
+  dark: { tick: '#8d8a85', grid: '#292826' },
+  light: { tick: '#75736d', grid: '#dcd9d5' },
+};
+
+const CHART_PERIODS = [
+  { key: '3m', label: '3ヶ月', days: 90 },
+  { key: '6m', label: '6ヶ月', days: 182 },
+  { key: '1y', label: '1年', days: 366 },
+] as const;
+type ChartPeriod = typeof CHART_PERIODS[number]['key'];
 
 function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
@@ -154,6 +170,7 @@ function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
 
 function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   const [theme, setTheme] = useState('dark');
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('1y');
   const [stocks, setStocks] = useState<StockMaster[]>([]);
   const [search, setSearch] = useState('');
   
@@ -251,26 +268,40 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     s.name_ja.includes(search) || s.code.includes(search) || s.name_en.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Configuration for Chart.js
-  const chartOptions: ChartOptions<'line'> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'index' as const, intersect: false },
-    plugins: { legend: { labels: { color: 'var(--tm)' } } },
-    scales: {
-      x: { ticks: { color: 'var(--tm)', maxTicksLimit: 14 }, grid: { color: 'var(--dv)' } },
-      y: { ticks: { color: 'var(--tm)' }, grid: { color: 'var(--dv)' } }
-    }
-  };
+  // Configuration for Chart.js（テーマ切り替え・不要な再レンダーのたびに作り直さないようメモ化）
+  const chartOptions: ChartOptions<'line'> = useMemo(() => {
+    const colors = CHART_THEME_COLORS[theme] ?? CHART_THEME_COLORS.dark;
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index' as const, intersect: false },
+      plugins: { legend: { labels: { color: colors.tick } } },
+      scales: {
+        x: { ticks: { color: colors.tick, maxTicksLimit: 14 }, grid: { color: colors.grid } },
+        y: { ticks: { color: colors.tick }, grid: { color: colors.grid } }
+      }
+    };
+  }, [theme]);
 
-  const chartPayload = chartData ? {
-    labels: chartData.labels,
-    datasets: [
-      { label: '株価', data: chartData.prices, borderColor: '#4f98a3', borderWidth: 2, pointRadius: 0, tension: .25 },
-      { label: 'MA5', data: chartData.ma5, borderColor: '#e8af34', borderWidth: 1.4, borderDash: [2, 2], pointRadius: 0, tension: .25 },
-      { label: 'MA25', data: chartData.ma25, borderColor: '#73a7d8', borderWidth: 1.4, borderDash: [5, 5], pointRadius: 0, tension: .25 }
-    ]
-  } : null;
+  // 表示期間の切り替えは、既に取得済みの1年分データを絞り込むだけで完結させる
+  // （切り替えのたびに新規データ取得は発生させない。REQUIREMENTS_v2.md 2.6参照）
+  const chartPayload = useMemo(() => {
+    if (!chartData) return null;
+    const periodDays = CHART_PERIODS.find(p => p.key === chartPeriod)?.days ?? 366;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - periodDays);
+    let sliceFrom = chartData.labels.findIndex(l => new Date(l.replace(/\//g, '-')) >= cutoff);
+    if (sliceFrom === -1) sliceFrom = 0;
+
+    return {
+      labels: chartData.labels.slice(sliceFrom),
+      datasets: [
+        { label: '株価', data: chartData.prices.slice(sliceFrom), borderColor: '#4f98a3', borderWidth: 2, pointRadius: 0, tension: .25 },
+        { label: 'MA5', data: chartData.ma5.slice(sliceFrom), borderColor: '#e8af34', borderWidth: 1.4, borderDash: [2, 2], pointRadius: 0, tension: .25 },
+        { label: 'MA25', data: chartData.ma25.slice(sliceFrom), borderColor: '#73a7d8', borderWidth: 1.4, borderDash: [5, 5], pointRadius: 0, tension: .25 }
+      ]
+    };
+  }, [chartData, chartPeriod]);
 
   return (
     <div className="app">
@@ -379,9 +410,27 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(320px, 0.95fr)', gap: 'var(--s4)' }}>
                 {/* 実際の株価チャート (yfinanceからの実データ) */}
                 <article className="card">
-                  <div style={{ padding: 'var(--s5)', borderBottom: '1px solid var(--dv)' }}>
-                    <div style={{ fontSize: 'var(--base)', fontWeight: 800 }}>テクニカルチャート</div>
-                    <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>過去6ヶ月の実際の株価推移 (yfinance)</div>
+                  <div style={{ padding: 'var(--s5)', borderBottom: '1px solid var(--dv)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s2)' }}>
+                    <div>
+                      <div style={{ fontSize: 'var(--base)', fontWeight: 800 }}>テクニカルチャート</div>
+                      <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>実際の株価推移 (yfinance)</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--s1)', background: 'var(--bg)', padding: '.2rem', borderRadius: 'var(--r1)' }}>
+                      {CHART_PERIODS.map(p => (
+                        <button
+                          key={p.key}
+                          onClick={() => setChartPeriod(p.key)}
+                          className="btn"
+                          style={{
+                            padding: '.35rem .7rem', fontSize: 'var(--xs)', border: 'none',
+                            background: chartPeriod === p.key ? 'var(--pr)' : 'transparent',
+                            color: chartPeriod === p.key ? 'var(--inv)' : 'var(--tm)',
+                          }}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                   <div style={{ padding: 'var(--s5)', height: '350px' }}>
                     {chartPayload ? <Line data={chartPayload} options={chartOptions} /> : <div style={{color:'var(--tm)'}}>Loading Real Price Data...</div>}
@@ -391,10 +440,10 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 <article className="card">
                   <div style={{ padding: 'var(--s5)', borderBottom: '1px solid var(--dv)' }}>
                     <div style={{ fontSize: 'var(--base)', fontWeight: 800 }}>バックテスト結果</div>
-                    <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>過去5年のルール再現 (Step 3)</div>
+                    <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>過去5年分、本番と同じ判定ルールを再現</div>
                   </div>
-                  
-                  {backtest ? (
+
+                  {backtest && backtest.computed ? (
                     <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 'var(--s2)', borderBottom: '1px solid var(--dv)' }}>
                         <span style={{ fontSize: 'var(--sm)', color: 'var(--tm)' }}>総取引回数</span>
@@ -414,7 +463,9 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ padding: 'var(--s5)' }}>Loading backtest...</div>
+                    <div style={{ padding: 'var(--s5)', color: 'var(--tm)' }}>
+                      {backtest ? '巡回処理がまだこの銘柄に到達していません（計算中）。しばらくしてから再度ご確認ください。' : 'Loading backtest...'}
+                    </div>
                   )}
                 </article>
               </section>
