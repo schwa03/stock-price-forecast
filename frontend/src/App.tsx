@@ -171,9 +171,10 @@ function SkeletonBlock({ width = '100%', height = '1rem' }: { width?: string; he
   return <div className="skeleton" style={{ width, height }} />;
 }
 
-function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
+function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; stocks: StockMaster[] }) {
   const [term, setTerm] = useState<RankingTerm>('medium');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
+  const nameByCode = useMemo(() => new Map(stocks.map(s => [s.code, s.name_ja])), [stocks]);
 
   useEffect(() => {
     const fetchRanking = () =>
@@ -252,8 +253,13 @@ function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--text)'}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}>
             <div>
-              <span style={{fontWeight:'bold', marginRight:'var(--s2)'}}>{s.code}</span>
-              <span className={`pill ${s.final_signal==='buy'?'p-ok':s.final_signal==='sell'?'p-er':'p-gd'}`}>{s.final_signal.toUpperCase()}</span>
+              <div>
+                <span style={{fontWeight:'bold', marginRight:'var(--s2)'}}>{s.code}</span>
+                <span className={`pill ${s.final_signal==='buy'?'p-ok':s.final_signal==='sell'?'p-er':'p-gd'}`}>{s.final_signal.toUpperCase()}</span>
+              </div>
+              {nameByCode.get(s.code) && (
+                <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.15rem' }}>{nameByCode.get(s.code)}</div>
+              )}
             </div>
             <div style={{display: 'flex', gap: 'var(--s2)', alignItems: 'center'}}>
               {s.updated_at && <span style={{fontSize: 'var(--xs)', color: 'var(--tm)'}}>{s.updated_at.split(' ')[1]}</span>}
@@ -795,10 +801,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                   <p>{errorMsg}</p>
                 </div>
               ) : (
-                <DashboardView onSelect={(code) => {
-                  const target = stocks.find(s => s.code === code);
-                  if (target) selectStock(target);
-                }} />
+                <DashboardView
+                  stocks={stocks}
+                  onSelect={(code) => {
+                    const target = stocks.find(s => s.code === code);
+                    if (target) selectStock(target);
+                  }}
+                />
               )}
             </div>
           )}
