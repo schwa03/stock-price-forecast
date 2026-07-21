@@ -114,18 +114,38 @@ const CHART_PERIODS = [
 ] as const;
 type ChartPeriod = typeof CHART_PERIODS[number]['key'];
 
+function SkeletonBlock({ width = '100%', height = '1rem' }: { width?: string; height?: string }) {
+  return <div className="skeleton" style={{ width, height }} />;
+}
+
 function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/recommendations`).then(res => setRanking(res.data)).catch(console.error);
+    // ランキングは巡回処理が数十秒〜数時間かけて更新するものなので、15秒間隔の
+    // ポーリングは過剰だった。数分単位に緩和する（長期投資中心の方針、REQUIREMENTS_v2.md 5.1参照）
     const timer = setInterval(() => {
       axios.get(`${API_BASE}/api/recommendations`).then(res => setRanking(res.data)).catch(console.error);
-    }, 15000);
+    }, 180000);
     return () => clearInterval(timer);
   }, []);
 
-  if (!ranking) return <div style={{ flex: 1, padding: 'var(--s5)', color: 'var(--tm)' }}>ランキングデータを取得・計算中（自律AI稼働中...）</div>;
+  if (!ranking) {
+    return (
+      <div style={{ flex: 1, padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s4)' }}>
+        <SkeletonBlock width="280px" height="1.8rem" />
+        <div style={{ display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap' }}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="card" style={{ flex: 1, minWidth: '300px', padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
+              <SkeletonBlock width="60%" height="1.2rem" />
+              {[0, 1, 2, 3, 4].map(j => <SkeletonBlock key={j} height="2.2rem" />)}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const renderList = (title: string, list: SignalSummary[]) => (
     <div className="card" style={{flex: 1, minWidth: '300px'}}>
@@ -326,6 +346,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
+      {/* 投資助言業規制のリスクを避けるための免責事項（REQUIREMENTS_v2.md 6.1参照）。
+          全画面（ランキング・個別銘柄いずれも）で常に表示する */}
+      <div style={{ padding: '.5rem var(--s6)', background: 'color-mix(in oklab, var(--gd) 12%, var(--bg))', borderBottom: '1px solid var(--dv)', fontSize: 'var(--xs)', color: 'var(--tm)', textAlign: 'center' }}>
+        本サービスが表示するスコア・判定・分析結果は投資助言ではありません。将来の成果を保証するものでもありません。投資に関する最終判断はご自身の責任で行ってください。
+      </div>
+
       <div className="layout">
         {/* Sidebar */}
         <aside className="sidebar" style={{ padding: 'var(--s6)', borderRight: '1px solid var(--dv)', background: 'var(--sf)', overflowY: 'auto' }}>
@@ -370,7 +396,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                        最終更新: {summary.updated_at}
                      </div>
                   )}
-                  {summary?.final_signal === 'analyzing...' && <div style={{display:'flex', alignItems:'center', color:'var(--tm)', fontSize:'var(--sm)'}}>AI分析中...</div>}
+                  {summary?.final_signal === 'analyzing...' && <div style={{display:'flex', alignItems:'center', color:'var(--tm)', fontSize:'var(--sm)'}}>AI分析中...（通常数秒〜数十秒で完了します）</div>}
                   {summary?.final_signal === 'error' && <div style={{display:'flex', alignItems:'center', color:'var(--er, #d64545)', fontSize:'var(--sm)'}}>分析に失敗しました（自動的に再試行されます）</div>}
                   <button onClick={handleManualRefresh} disabled={isRefreshing} className="btn" style={{display: 'flex', gap: '8px', alignItems:'center', opacity: isRefreshing ? 0.7 : 1}}>
                     <RefreshCw size={18} className={isRefreshing ? 'spin' : ''} />
@@ -383,25 +409,42 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--s4)' }}>
                 <div className="card" style={{ padding: 'var(--s5)' }}>
                   <div style={{ fontSize: 'var(--xs)', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tf)', fontWeight: 800 }}>最終判定</div>
-                  <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>
-                    {summary ? (summary.final_signal === 'error' ? 'エラー' : `${summary.final_score} pt`) : 'Loading...'}
-                  </div>
-                  <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: 'var(--s2)' }}>
-                    {summary && summary.final_signal === 'error' && <span className="pill p-er">取得失敗</span>}
-                    {summary && summary.final_signal !== 'error' && <span className={`pill ${summary.final_signal==='buy'?'p-ok':summary.final_signal==='sell'?'p-er':'p-gd'}`}>{summary.final_signal.toUpperCase()}</span>}
-                    {!summary && '---'}
-                  </div>
+                  {summary ? (
+                    <>
+                      <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>
+                        {summary.final_signal === 'error' ? 'エラー' : `${summary.final_score} pt`}
+                      </div>
+                      <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: 'var(--s2)' }}>
+                        {summary.final_signal === 'error'
+                          ? <span className="pill p-er">取得失敗</span>
+                          : <span className={`pill ${summary.final_signal==='buy'?'p-ok':summary.final_signal==='sell'?'p-er':'p-gd'}`}>{summary.final_signal.toUpperCase()}</span>}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ marginTop: 'var(--s2)', display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
+                      <SkeletonBlock height="1.8rem" width="70%" />
+                      <SkeletonBlock height="1.2rem" width="45%" />
+                    </div>
+                  )}
                 </div>
-                
+
                 <div className="card" style={{ padding: 'var(--s5)' }}>
                   <div style={{ fontSize: 'var(--xs)', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tf)', fontWeight: 800 }}>短期スコア / AI</div>
-                  <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>{summary ? `${summary.short_score} pt` : '---'}</div>
+                  {summary ? (
+                    <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>{summary.short_score} pt</div>
+                  ) : (
+                    <div style={{ marginTop: 'var(--s2)' }}><SkeletonBlock height="1.8rem" width="50%" /></div>
+                  )}
                   <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: 'var(--s2)' }}>チャート + ニュース</div>
                 </div>
 
                 <div className="card" style={{ padding: 'var(--s5)' }}>
                   <div style={{ fontSize: 'var(--xs)', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tf)', fontWeight: 800 }}>長期スコア / AI</div>
-                  <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>{summary ? `${summary.long_score} pt` : '---'}</div>
+                  {summary ? (
+                    <div className="mono" style={{ font: '700 var(--xl)/1.1 var(--mono)', marginTop: 'var(--s2)' }}>{summary.long_score} pt</div>
+                  ) : (
+                    <div style={{ marginTop: 'var(--s2)' }}><SkeletonBlock height="1.8rem" width="50%" /></div>
+                  )}
                   <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: 'var(--s2)' }}>TDnet + EDINET + IR</div>
                 </div>
               </section>
@@ -433,7 +476,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                     </div>
                   </div>
                   <div style={{ padding: 'var(--s5)', height: '350px' }}>
-                    {chartPayload ? <Line data={chartPayload} options={chartOptions} /> : <div style={{color:'var(--tm)'}}>Loading Real Price Data...</div>}
+                    {chartPayload ? <Line data={chartPayload} options={chartOptions} /> : <SkeletonBlock height="100%" />}
                   </div>
                 </article>
 
@@ -462,9 +505,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                         <span className="mono neg" style={{ fontWeight: 800 }}>{backtest.max_drawdown}%</span>
                       </div>
                     </div>
-                  ) : (
+                  ) : backtest ? (
                     <div style={{ padding: 'var(--s5)', color: 'var(--tm)' }}>
-                      {backtest ? '巡回処理がまだこの銘柄に到達していません（計算中）。しばらくしてから再度ご確認ください。' : 'Loading backtest...'}
+                      巡回処理がまだこの銘柄に到達していません（計算中）。しばらくしてから再度ご確認ください。
+                    </div>
+                  ) : (
+                    <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
+                      {[0, 1, 2, 3].map(i => <SkeletonBlock key={i} height="1.4rem" />)}
                     </div>
                   )}
                 </article>
@@ -478,6 +525,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                     <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>個別記事の要約とセンチメント</div>
                   </div>
                   <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
+                    {!summary && newsList.length === 0 && [0, 1, 2].map(i => <SkeletonBlock key={i} height="4.5rem" />)}
                     {newsList.map((n, i) => (
                       n.source === 'System' ? (
                         <div key={i} style={{ padding: 'var(--s4)', border: '1px dashed var(--dv)', borderRadius: 'var(--r1)', color: 'var(--tm)' }}>
@@ -510,6 +558,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                     <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>開示資料ごとの長期インパクト評価</div>
                   </div>
                   <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
+                    {!summary && docList.length === 0 && [0, 1, 2].map(i => <SkeletonBlock key={i} height="4.5rem" />)}
                     {docList.map((d, i) => (
                       d.type === 'System' ? (
                         <div key={i} style={{ padding: 'var(--s4)', border: '1px dashed var(--dv)', borderRadius: 'var(--r1)', color: 'var(--tm)' }}>

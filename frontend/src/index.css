@@ -128,6 +128,21 @@ a:hover {
   .spin { animation: none; }
 }
 
+/* データ取得中のスケルトン表示（空白のまま待たせないため） */
+.skeleton {
+  background: linear-gradient(90deg, var(--sf2) 25%, var(--bd) 37%, var(--sf2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: var(--r1);
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
 /* Utilities */
 .btn {
   padding: .6rem .9rem;

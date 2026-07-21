@@ -357,8 +357,10 @@ async def update_backtest_result(code: str):
 
 async def autonomous_core_crawler():
     """テクニカル+MLでコアスコアを高速に巡回更新するループ（Geminiクォータの影響を受けない）。"""
-    # 225銘柄を無理なく1日に何周もできる程度の間隔（yfinance側への配慮も兼ねる）
-    sleep_duration = 3.0
+    # 長期投資中心・日次更新で十分という方針（REQUIREMENTS_v2.md 5.1/5.7）に対し、
+    # 3秒間隔（225銘柄を約11分で一周）は過剰だったため30秒に緩和した
+    # （225銘柄で約1.9時間の一周。それでも日次更新の要件を十分満たす）。
+    sleep_duration = 30.0
     while True:
         if MASTER_STOCKS:
             async with session_scope() as session:
@@ -522,7 +524,7 @@ def get_stocks():
 @api.get("/api/stocks/{code}/summary", response_model=SignalSummary)
 async def get_stock_summary(code: str, background_tasks: BackgroundTasks, session=Depends(get_session)):
     row = await session.get(SignalSummaryRow, code)
-    if row:
+    if row and row.final_signal != "analyzing...":
         return SignalSummary(
             code=row.code, short_score=row.short_score, long_score=row.long_score,
             risk_score=row.risk_score, final_score=row.final_score,
@@ -532,7 +534,11 @@ async def get_stock_summary(code: str, background_tasks: BackgroundTasks, sessio
     stock = next((s for s in MASTER_STOCKS if s.code == code), None)
     name_ja = stock.name_ja if stock else "該当銘柄"
 
-    # コアスコアはGeminiに依存しないため高速（数秒程度）。
+    # コアスコアはGeminiに依存しないため高速（数秒程度）。行が存在しない場合だけでなく、
+    # 行はあってもfinal_signalが"analyzing..."のまま（ニュース巡回側の upsert が先に行を
+    # 作った等）の場合も対象にする。そうしないと、低頻度なコアスコア巡回ループ
+    # （autonomous_core_crawler）が偶然この銘柄に到達するまで、永遠に「分析中」が
+    # 表示され続けてしまう（REQUIREMENTS_v2.md 5.3参照）。
     # ニュース/開示分析（Gemini）はここではトリガーせず、別ループの巡回のみに任せる
     # （クォータが極めて限られているため、閲覧操作から消費しないようにする。REQUIREMENTS_v2.md 5.1参照）
     if code not in _CORE_PROCESSING:
