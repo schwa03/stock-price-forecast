@@ -1,5 +1,5 @@
 import { Component, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
-import { Sun, Moon, Activity, RefreshCw, LogOut } from 'lucide-react';
+import { Sun, Moon, Activity, RefreshCw, LogOut, Home } from 'lucide-react';
 import './index.css';
 import axios from 'axios';
 import LoginScreen from './LoginScreen';
@@ -445,7 +445,11 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
     <div className="app">
       {/* Header */}
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s6)', borderBottom: '1px solid var(--dv)', background: 'color-mix(in oklab, var(--bg) 88%, transparent)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', fontWeight: 800 }}>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', fontWeight: 800, cursor: current ? 'pointer' : 'default' }}
+          onClick={() => current && setCurrent(null)}
+          title={current ? 'クリックしてランキングに戻る' : undefined}
+        >
           <Activity size={30} color="var(--pr)" />
           <div>
             <div>日本株 売買シグナル基盤</div>
@@ -453,6 +457,13 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--s3)' }}>
+          {/* 銘柄をクリックするとランキング画面に戻る手段がなかったため追加 */}
+          {current && (
+            <button onClick={() => setCurrent(null)} className="btn" style={{display: 'flex', gap: '8px', alignItems:'center'}}>
+              <Home size={18}/>
+              ランキングに戻る
+            </button>
+          )}
           <button onClick={toggleTheme} className="btn" style={{display: 'flex', gap: '8px', alignItems:'center'}}>
             {theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}
             テーマ切替
