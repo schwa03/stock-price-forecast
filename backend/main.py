@@ -259,11 +259,13 @@ async def update_core_score(code: str, name_ja: str):
         fundamentals_values = None
         try:
             info = await asyncio.to_thread(lambda: yf.Ticker(ticker).info)
-            dividend_yield = info.get("dividendYield")
+            # yfinanceのdividendYieldは（バージョンにより挙動が変わってきた経緯があるが）
+            # 実機検証の結果、既にパーセント表記（例: 2.36 = 2.36%）で返ることを確認済み。
+            # 小数比率(0.0236)と誤解して100倍すると236%のような異常値になるため注意。
             fundamentals_values = dict(
                 per=info.get("trailingPE"),
                 pbr=info.get("priceToBook"),
-                dividend_yield=(dividend_yield * 100) if isinstance(dividend_yield, (int, float)) else None,
+                dividend_yield=info.get("dividendYield"),
                 earnings_growth=info.get("earningsGrowth"),
                 updated_at=_jst_now_str(),
             )
