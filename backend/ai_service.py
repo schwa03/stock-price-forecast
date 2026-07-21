@@ -207,3 +207,92 @@ def extract_docs_facts(code: str, name_ja: str) -> List[Dict]:
             fact_msg = "AI推論エラーが発生しました"
         print(f"[AI_SERVICE] Docs Extract Error: {error_msg}")
         return [{"fact": fact_msg, "title": "AI分析エラー", "type": "エラー"}]
+
+
+# 巡回処理からの銘柄別ニュース/開示分析は、1銘柄ごとに2回Geminiを呼ぶと
+# 225銘柄で450リクエストになり無料枠クォータをすぐ使い切ってしまう。
+# 複数銘柄をまとめて1回のリクエストで処理することでクォータ消費を抑える
+# （REQUIREMENTS_v2.md 2.3参照。目安15銘柄/リクエスト）。
+NEWS_BATCH_SIZE = 15
+
+
+def extract_news_facts_batch(stocks: List[Dict]) -> Dict[str, List[Dict]]:
+    """複数銘柄分のニュースファクトを1回のGemini呼び出しでまとめて抽出する。
+
+    stocks: [{"code": str, "name_ja": str, "news": [{"title": str}, ...]}, ...]
+    戻り値: {code: [fact, ...]}（該当銘柄の抽出に失敗/欠落していれば空リスト）
+    """
+    if not get_keys():
+        return {s["code"]: [{"fact": "AI連動オフ（APIキー未設定）", "category": "エラー", "title": "AI連動オフ"}] for s in stocks}
+
+    prompt = """
+    あなたはデータ抽出の専門AIです。
+    以下は複数銘柄それぞれに関する直近のニュースヘッドラインです。
+    各銘柄について、企業の業績、経営、マクロ環境、リスク等に関する「事実（ファクト）」を
+    一切の主観や評価を交えずに抽出してください。重要度で選別せず、見つかったファクトはすべて出力してください。
+
+    出力は必ず、銘柄コードをキーとする以下のJSONオブジェクト形式としてください:
+    {
+      "銘柄コード": [
+        {"title": "もっとも関連する元のニュースのタイトル", "category": "財務, 経営, 製品, マクロ, その他 のいずれか", "fact": "抽出された事実（20文字程度）"}
+      ]
+    }
+
+    銘柄一覧:
+    """
+    for s in stocks:
+        prompt += f"\n### {s['code']} ({s['name_ja']})\n"
+        for n in s.get("news", []):
+            prompt += f"- {n['title']}\n"
+
+    try:
+        text = call_gemini_with_retry(prompt)
+        parsed = json.loads(text)
+        return {s["code"]: parsed.get(s["code"], []) for s in stocks}
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            fact_msg = "API利用制限超過（無料枠のクォータ上限に達しました。しばらくすると再試行されます）"
+        else:
+            fact_msg = "AI推論エラーが発生しました"
+        print(f"[AI_SERVICE] Batch News Extract Error: {error_msg}")
+        return {s["code"]: [{"fact": fact_msg, "category": "エラー", "title": "AI分析エラー"}] for s in stocks}
+
+
+def extract_docs_facts_batch(stocks: List[Dict]) -> Dict[str, List[Dict]]:
+    """複数銘柄分の開示情報ファクトを1回のGemini呼び出しでまとめて抽出する（モックジェネレーター）。
+
+    stocks: [{"code": str, "name_ja": str}, ...]
+    """
+    if not get_keys():
+        return {s["code"]: [{"fact": "AI連動オフ（APIキー未設定）", "title": "AI連動オフ", "type": "エラー"}] for s in stocks}
+
+    prompt = """
+    あなたはデータ抽出の専門AIです。
+    以下の複数銘柄それぞれについて、直近の決算短信や有価証券報告書などの開示資料に基づく
+    「想定される事実（ファクト）」を1〜2点推測・抽出してください。
+
+    出力は必ず、銘柄コードをキーとする以下のJSONオブジェクト形式としてください:
+    {
+      "銘柄コード": [
+        {"title": "資料名（例: TDnet: 2024年度決算短信）", "type": "TDnet または EDINET", "fact": "抽出された事実（20文字程度）"}
+      ]
+    }
+
+    銘柄一覧:
+    """
+    for s in stocks:
+        prompt += f"- {s['code']} ({s['name_ja']})\n"
+
+    try:
+        text = call_gemini_with_retry(prompt)
+        parsed = json.loads(text)
+        return {s["code"]: parsed.get(s["code"], []) for s in stocks}
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            fact_msg = "API利用制限超過（無料枠のクォータ上限に達しました。しばらくすると再試行されます）"
+        else:
+            fact_msg = "AI推論エラーが発生しました"
+        print(f"[AI_SERVICE] Batch Docs Extract Error: {error_msg}")
+        return {s["code"]: [{"fact": fact_msg, "title": "AI分析エラー", "type": "エラー"}] for s in stocks}

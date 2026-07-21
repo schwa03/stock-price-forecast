@@ -360,6 +360,71 @@ async def update_news_and_docs(code: str, name_ja: str):
         _NEWS_PROCESSING.discard(code)
 
 
+async def update_news_and_docs_batch(stocks: list[tuple[str, str]]):
+    """自律巡回専用: 複数銘柄をまとめて2回（ニュース1回＋開示1回）のGemini呼び出しで処理する。
+
+    1銘柄ごとに2回呼ぶ`update_news_and_docs`（手動「最新化」ボタン用に維持）だと
+    225銘柄で450リクエストになり無料枠クォータをすぐ使い切ってしまうため、
+    巡回処理はこちらのバッチ版のみを使う（REQUIREMENTS_v2.md 2.3参照、目安15銘柄/リクエスト）。
+    """
+    stock_news: dict[str, list[dict]] = {}
+    for code, name_ja in stocks:
+        try:
+            raw_news = await asyncio.to_thread(ai_service.fetch_recent_news, name_ja)
+        except Exception as e:
+            print(f"[NEWS_CRAWLER] {code}: RSS fetch failed: {e}")
+            raw_news = []
+        if not raw_news:
+            raw_news = [{"title": f"{name_ja}に関する直近のニュースはありません", "url": "#", "source": "API"}]
+        stock_news[code] = raw_news
+
+    news_batch_input = [{"code": code, "name_ja": name_ja, "news": stock_news[code]} for code, name_ja in stocks]
+    facts_by_code = await asyncio.to_thread(ai_service.extract_news_facts_batch, news_batch_input)
+
+    docs_batch_input = [{"code": code, "name_ja": name_ja} for code, name_ja in stocks]
+    docs_facts_by_code = await asyncio.to_thread(ai_service.extract_docs_facts_batch, docs_batch_input)
+
+    news_updated_at = _jst_now_str()
+    try:
+        async with session_scope() as session:
+            for code, name_ja in stocks:
+                news_results = internal_ai.score_news_facts(facts_by_code.get(code, []), stock_news.get(code, []))
+                docs_results = internal_ai.score_docs_facts(docs_facts_by_code.get(code, []))
+
+                await session.execute(delete(NewsItemRow).where(NewsItemRow.stock_code == code))
+                session.add_all([
+                    NewsItemRow(stock_code=code, title=n.get("title", ""), source=n.get("source", ""),
+                                url=n.get("url", "#"), effect=str(n.get("effect", "0")),
+                                reason=n.get("reason", ""), cls=n.get("cls", "neu"))
+                    for n in news_results
+                ])
+
+                await session.execute(delete(DocItemRow).where(DocItemRow.stock_code == code))
+                session.add_all([
+                    DocItemRow(stock_code=code, title=d.get("title", ""), type=d.get("type", "EDINET"),
+                               url=d.get("url", "#"), effect=str(d.get("effect", "0")),
+                               reason=d.get("reason", ""), cls=d.get("cls", "neu"))
+                    for d in docs_results
+                ])
+
+                stmt = pg_insert(SignalSummaryRow).values(
+                    code=code, short_score=50, long_score=50, risk_score=50,
+                    final_score=50, final_signal="analyzing...", updated_at="",
+                    news_updated_at=news_updated_at,
+                )
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[SignalSummaryRow.code],
+                    set_={"news_updated_at": stmt.excluded.news_updated_at},
+                )
+                await session.execute(stmt)
+            await session.commit()
+    except Exception as e:
+        print("update_news_and_docs_batch failed:", e)
+    finally:
+        for code, _ in stocks:
+            _NEWS_PROCESSING.discard(code)
+
+
 async def update_macro_news():
     """個別銘柄に紐づかない市場全体・マクロ・地政学ニュースを収集・分析する。
 
@@ -451,7 +516,11 @@ async def autonomous_core_crawler():
 
 
 async def autonomous_news_crawler():
-    """Gemini APIでニュース・開示情報を巡回更新するループ（動的レートリミット保護つき）。"""
+    """Gemini APIでニュース・開示情報を巡回更新するループ（動的レートリミット保護つき）。
+
+    複数銘柄をまとめて1回のGemini呼び出しで処理するバッチ方式
+    （REQUIREMENTS_v2.md 2.3参照、2026-07-21改訂）。
+    """
     sleep_duration = 16.0
     while True:
         if MASTER_STOCKS:
@@ -460,15 +529,15 @@ async def autonomous_news_crawler():
                 await asyncio.sleep(60)
                 continue
 
-            # 1日あたりの最大安全処理数。
+            # 1日あたりの最大安全「バッチ」数。
             # 実際のGemini無料枠のクォータ上限は環境依存・モデル依存で変わりうるため
             # 環境変数で上書き可能にする（2026-07-15時点、gemini-3.5-flashの無料枠で
             # 実測した上限は「1キーあたり1日20リクエスト」だった。当初の想定=1500は誤り）。
             daily_quota_per_key = int(os.getenv("GEMINI_DAILY_REQUEST_QUOTA_PER_KEY", "20"))
-            # 1銘柄でニュース・開示情報の2回Gemini APIを消費する
-            max_stocks_per_day = key_count * max(1, daily_quota_per_key // 2)
-            # 1銘柄あたりの猶予時間（1日の秒数 86400 / 処理可能数）に 10% の安全バッファを掛ける
-            safe_sleep_seconds = (86400 / max_stocks_per_day) * 1.10
+            # 1バッチでニュース・開示情報の2回Gemini APIを消費する（銘柄数に関わらず一定）
+            max_batches_per_day = key_count * max(1, daily_quota_per_key // 2)
+            # 1バッチあたりの猶予時間（1日の秒数 86400 / 処理可能バッチ数）に 10% の安全バッファを掛ける
+            safe_sleep_seconds = (86400 / max_batches_per_day) * 1.10
             sleep_duration = max(16.0, safe_sleep_seconds)
 
             async with session_scope() as session:
@@ -486,10 +555,13 @@ async def autonomous_news_crawler():
 
             if stock_queue:
                 stock_queue.sort(key=lambda x: x[1])
-                target_stock = stock_queue[0][0]
-                _NEWS_PROCESSING.add(target_stock.code)
-                print(f"[NEWS_CRAWLER] Auto-updating: {target_stock.code} (Wait: {sleep_duration:.1f}s)")
-                asyncio.create_task(update_news_and_docs(target_stock.code, target_stock.name_ja))
+                batch = stock_queue[:ai_service.NEWS_BATCH_SIZE]
+                target_stocks = [(s.code, s.name_ja) for s, _ in batch]
+                for code, _ in target_stocks:
+                    _NEWS_PROCESSING.add(code)
+                print(f"[NEWS_CRAWLER] Auto-updating batch of {len(target_stocks)}: "
+                      f"{[c for c, _ in target_stocks]} (Wait: {sleep_duration:.1f}s)")
+                asyncio.create_task(update_news_and_docs_batch(target_stocks))
 
         await asyncio.sleep(sleep_duration)
 
