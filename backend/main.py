@@ -820,8 +820,18 @@ async def get_stock_backtest(code: str, session=Depends(get_session)):
     # コアスコアと違って閲覧操作からトリガーはしない。REQUIREMENTS_v2.md 5.1参照）
     return BacktestResult(code=code, trades=0, win_rate=0, avg_return=0, max_drawdown=0, computed=False)
 
+# 短期・中期・長期タブの切り替え用。短期=テクニカル(short_score)、長期=ML予測リターン(long_score)、
+# 中期=両者を50:50で合成したfinal_score（既存のブレンドスコアをそのまま「中期」の目安として使う。
+# REQUIREMENTS_v2.md 2.2参照。新たに中期専用のモデルは持たない）
+_RANKING_TERM_SCORE_KEY = {
+    "short": lambda s: s.short_score,
+    "medium": lambda s: s.final_score,
+    "long": lambda s: s.long_score,
+}
+
+
 @api.get("/api/recommendations", response_model=RankingResponse)
-async def get_recommendations(session=Depends(get_session)):
+async def get_recommendations(term: str = "medium", session=Depends(get_session)):
     rows = (await session.execute(
         select(SignalSummaryRow).where(SignalSummaryRow.final_signal != "analyzing...")
     )).scalars().all()
@@ -832,14 +842,16 @@ async def get_recommendations(session=Depends(get_session)):
         for r in rows
     ]
 
+    score_key = _RANKING_TERM_SCORE_KEY.get(term, _RANKING_TERM_SCORE_KEY["medium"])
+
     # スコアで降順ソート
-    sorted_stocks = sorted(valid_stocks, key=lambda x: x.final_score, reverse=True)
+    sorted_stocks = sorted(valid_stocks, key=score_key, reverse=True)
 
     # 買うべきランキング（スコア上位）
     top_buy = sorted_stocks[:5]
 
     # 売るべきランキング（スコア下位）- ascending order
-    top_sell = sorted(valid_stocks, key=lambda x: x.final_score, reverse=False)[:5]
+    top_sell = sorted(valid_stocks, key=score_key, reverse=False)[:5]
 
     # ワースト評価（買うべきでない＝実質売るべき銘柄、売るべきでない＝実質買うべき銘柄と同義だが
     # フロントで使い分け可能にしている）

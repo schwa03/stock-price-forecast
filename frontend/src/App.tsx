@@ -123,6 +123,16 @@ const CHART_PERIODS = [
 ] as const;
 type ChartPeriod = typeof CHART_PERIODS[number]['key'];
 
+// 短期=テクニカル指標(short_score)、長期=ML予測リターン(long_score)、
+// 中期=両者を50:50で合成した既存のfinal_score（バックエンドと対応。backend/main.pyの
+// _RANKING_TERM_SCORE_KEY参照）
+const RANKING_TERMS = [
+  { key: 'short', label: '短期', scoreKey: 'short_score' as const },
+  { key: 'medium', label: '中期', scoreKey: 'final_score' as const },
+  { key: 'long', label: '長期', scoreKey: 'long_score' as const },
+] as const;
+type RankingTerm = typeof RANKING_TERMS[number]['key'];
+
 // Reactは描画中の例外を捕捉しないと画面全体がアンマウントされ、
 // ダークテーマのbody背景だけが残って「画面が暗転する」ように見える
 // （報告のあった不具合。エラーバウンダリはクラスコンポーネントでしか書けない）。
@@ -162,22 +172,54 @@ function SkeletonBlock({ width = '100%', height = '1rem' }: { width?: string; he
 }
 
 function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
+  const [term, setTerm] = useState<RankingTerm>('medium');
   const [ranking, setRanking] = useState<RankingResponse | null>(null);
 
   useEffect(() => {
-    axios.get(`${API_BASE}/api/recommendations`).then(res => setRanking(res.data)).catch(console.error);
+    const fetchRanking = () =>
+      axios.get(`${API_BASE}/api/recommendations`, { params: { term } }).then(res => setRanking(res.data)).catch(console.error);
+    fetchRanking();
     // ランキングは巡回処理が数十秒〜数時間かけて更新するものなので、15秒間隔の
     // ポーリングは過剰だった。数分単位に緩和する（長期投資中心の方針、REQUIREMENTS_v2.md 5.1参照）
-    const timer = setInterval(() => {
-      axios.get(`${API_BASE}/api/recommendations`).then(res => setRanking(res.data)).catch(console.error);
-    }, 180000);
+    const timer = setInterval(fetchRanking, 180000);
     return () => clearInterval(timer);
-  }, []);
+  }, [term]);
+
+  // タブ切り替え時のリセットはイベントハンドラ側で行う
+  // （Effect内で直接setStateを呼ぶとカスケードレンダリングになるため避ける。selectStockと同じ方針）
+  const handleTermChange = (key: RankingTerm) => {
+    setTerm(key);
+    setRanking(null);
+  };
+
+  const scoreKey = RANKING_TERMS.find(t => t.key === term)?.scoreKey ?? 'final_score';
+
+  const termTabs = (
+    <div style={{ display: 'flex', gap: 'var(--s1)', background: 'var(--bg)', padding: '.2rem', borderRadius: 'var(--r1)' }}>
+      {RANKING_TERMS.map(t => (
+        <button
+          key={t.key}
+          onClick={() => handleTermChange(t.key)}
+          className="btn"
+          style={{
+            padding: '.5rem 1rem', border: 'none',
+            background: term === t.key ? 'var(--pr)' : 'transparent',
+            color: term === t.key ? 'var(--inv)' : 'var(--tm)',
+          }}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
 
   if (!ranking) {
     return (
       <div style={{ flex: 1, padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s4)' }}>
-        <SkeletonBlock width="280px" height="1.8rem" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)' }}>
+          <SkeletonBlock width="280px" height="1.8rem" />
+          {termTabs}
+        </div>
         <div style={{ display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap' }}>
           {[0, 1, 2, 3].map(i => (
             <div key={i} className="card" style={{ flex: 1, minWidth: '300px', padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
@@ -190,13 +232,22 @@ function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
     );
   }
 
+  // 表示中の銘柄のうち最も更新が古いもの（＝この推奨がいつ時点のデータに基づくか）を求める。
+  // updated_atは"YYYY-MM-DD HH:MM:SS"形式の文字列で、この形式は文字列比較がそのまま時系列順になる
+  const allShown = [...ranking.top_buy, ...ranking.bottom_sell, ...ranking.top_sell, ...ranking.bottom_buy];
+  const oldestUpdatedAt = allShown.reduce<string | null>((oldest, s) => {
+    if (!s.updated_at) return oldest;
+    if (!oldest || s.updated_at < oldest) return s.updated_at;
+    return oldest;
+  }, null);
+
   const renderList = (title: string, list: SignalSummary[]) => (
     <div className="card" style={{flex: 1, minWidth: '300px'}}>
       <h3 style={{marginBottom: 'var(--s3)', fontSize: 'var(--lg)'}}>{title}</h3>
       {list.length === 0 && <div style={{color:'var(--tm)'}}>データ収集中...</div>}
       <div style={{display: 'flex', flexDirection: 'column', gap: 'var(--s2)'}}>
         {list.map(s => (
-          <div key={s.code} style={{display:'flex', justifyContent:'space-between', padding:'var(--s2)', background:'var(--bg)', borderRadius:'var(--radius)', cursor:'pointer', border: '1px solid transparent'}} 
+          <div key={s.code} style={{display:'flex', justifyContent:'space-between', padding:'var(--s2)', background:'var(--bg)', borderRadius:'var(--radius)', cursor:'pointer', border: '1px solid transparent'}}
                onClick={() => onSelect(s.code)}
                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--text)'}
                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'transparent'}>
@@ -206,7 +257,7 @@ function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
             </div>
             <div style={{display: 'flex', gap: 'var(--s2)', alignItems: 'center'}}>
               {s.updated_at && <span style={{fontSize: 'var(--xs)', color: 'var(--tm)'}}>{s.updated_at.split(' ')[1]}</span>}
-              <span style={{fontWeight:'bold'}}>{s.final_score} pt</span>
+              <span style={{fontWeight:'bold'}}>{s[scoreKey]} pt</span>
             </div>
           </div>
         ))}
@@ -216,9 +267,20 @@ function DashboardView({ onSelect }: { onSelect: (c: string) => void }) {
 
   return (
     <div style={{ flex: 1, padding: 'var(--s5)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-      <h1 style={{fontSize: 'var(--xl)', marginBottom: 'var(--s2)'}}>AI推奨・市場ランキング</h1>
-      <p style={{color: 'var(--tm)', marginBottom: 'var(--s5)'}}>内部AI＋Geminiのハイブリッド推論により、現在裏側で自動巡回・更新中の最新ランキングです。</p>
-      
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)', marginBottom: 'var(--s2)' }}>
+        <h1 style={{fontSize: 'var(--xl)'}}>AI推奨・市場ランキング</h1>
+        {termTabs}
+      </div>
+      <p style={{color: 'var(--tm)', marginBottom: 'var(--s2)'}}>
+        内部AI＋Geminiのハイブリッド推論により、現在裏側で自動巡回・更新中の最新ランキングです。
+        「短期」はテクニカル指標、「長期」はMLによる将来リターン予測、「中期」は両者を均等配分したスコアに基づきます。
+      </p>
+      {oldestUpdatedAt && (
+        <p style={{ color: 'var(--tm)', fontSize: 'var(--xs)', marginBottom: 'var(--s5)' }}>
+          表示中の銘柄のうち最も古い更新は {oldestUpdatedAt} 時点です。このランキングは{oldestUpdatedAt}までのデータに基づいて算出しています。
+        </p>
+      )}
+
       <div style={{display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap', marginBottom: 'var(--s4)'}}>
         {renderList("📈 買うべき銘柄 5選", ranking.top_buy)}
         {renderList("📉 売るべきでない銘柄 5選 (反発期待)", ranking.bottom_sell)}
@@ -270,11 +332,12 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   };
 
   // Fetch initial stocks
+  // 訪問時の最初の画面はランキング(DashboardView)にする（FEATURES.md 6節参照）ため、
+  // ここでは銘柄一覧の取得のみ行い、自動的に銘柄を選択状態にはしない
   useEffect(() => {
     axios.get(`${API_BASE}/api/stocks`)
       .then(res => {
         setStocks(res.data);
-        if(res.data.length > 0) setCurrent(res.data[0]);
       })
       .catch(err => {
         console.error("API Fetch Error:", err);
@@ -409,30 +472,36 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
 
       <div className="layout">
         {/* Sidebar */}
-        <aside className="sidebar" style={{ padding: 'var(--s6)', borderRight: '1px solid var(--dv)', background: 'var(--sf)', overflowY: 'auto' }}>
-          <div style={{ fontSize: 'var(--xs)', color: 'var(--tf)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 800, marginBottom: 'var(--s3)' }}>日経225 銘柄</div>
-          <input 
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ width: '100%', padding: '.85rem .95rem', border: '1px solid var(--bd)', borderRadius: 'var(--r1)', background: 'var(--sf2)', color: 'var(--tx)', fontFamily: 'var(--font)' }} 
-            placeholder="銘柄名・コード" 
-          />
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)', marginTop: 'var(--s4)' }}>
-            {filteredStocks.map(s => (
-              <div 
-                key={s.code}
-                onClick={() => selectStock(s)}
-                style={{
-                  padding: 'var(--s3)', border: '1px solid transparent', borderRadius: 'var(--r1)', cursor: 'pointer',
-                  borderColor: current?.code === s.code ? 'color-mix(in oklab,var(--pr) 30%, var(--bd))' : 'transparent',
-                  background: current?.code === s.code ? 'color-mix(in oklab,var(--pr) 9%, var(--sf2))' : 'var(--sf2)'
-                }}
-              >
-                <div style={{ fontWeight: 800, fontSize: 'var(--sm)' }}>{s.name_ja}</div>
-                <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>{s.code} · {s.sector}</div>
-              </div>
-            ))}
+        <aside className="sidebar" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, borderRight: '1px solid var(--dv)', background: 'var(--sf)' }}>
+          {/* 検索バーは一覧のスクロールに巻き込まれず常に見える位置に固定する
+              （一覧を下までスクロールすると検索バーが見えなくなっていた問題への対応） */}
+          <div style={{ padding: 'var(--s6) var(--s6) var(--s4)', flexShrink: 0 }}>
+            <div style={{ fontSize: 'var(--xs)', color: 'var(--tf)', textTransform: 'uppercase', letterSpacing: '.08em', fontWeight: 800, marginBottom: 'var(--s3)' }}>日経225 銘柄</div>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: '100%', padding: '.85rem .95rem', border: '1px solid var(--bd)', borderRadius: 'var(--r1)', background: 'var(--sf2)', color: 'var(--tx)', fontFamily: 'var(--font)' }}
+              placeholder="銘柄名・コード"
+            />
+          </div>
+
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 var(--s6) var(--s6)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s2)' }}>
+              {filteredStocks.map(s => (
+                <div
+                  key={s.code}
+                  onClick={() => selectStock(s)}
+                  style={{
+                    padding: 'var(--s3)', border: '1px solid transparent', borderRadius: 'var(--r1)', cursor: 'pointer',
+                    borderColor: current?.code === s.code ? 'color-mix(in oklab,var(--pr) 30%, var(--bd))' : 'transparent',
+                    background: current?.code === s.code ? 'color-mix(in oklab,var(--pr) 9%, var(--sf2))' : 'var(--sf2)'
+                  }}
+                >
+                  <div style={{ fontWeight: 800, fontSize: 'var(--sm)' }}>{s.name_ja}</div>
+                  <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>{s.code} · {s.sector}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </aside>
 
