@@ -79,6 +79,15 @@ interface ChartResponse {
   ma25: (number | null)[];
 }
 
+interface FundamentalsResponse {
+  code: string;
+  per: number | null;
+  pbr: number | null;
+  dividend_yield: number | null;
+  earnings_growth: number | null;
+  computed: boolean;
+}
+
 interface NewsInfo {
   title: string;
   source: string;
@@ -203,8 +212,19 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   const [summary, setSummary] = useState<SignalSummary | null>(null);
   const [backtest, setBacktest] = useState<BacktestResult | null>(null);
   const [chartData, setChartData] = useState<ChartResponse | null>(null);
+  const [fundamentals, setFundamentals] = useState<FundamentalsResponse | null>(null);
   const [newsList, setNewsList] = useState<NewsInfo[]>([]);
   const [docList, setDocList] = useState<DocInfo[]>([]);
+  // 個別銘柄に紐づかない市場全体・マクロ要因ニュース（全銘柄共通、判定根拠の補助表示専用。
+  // REQUIREMENTS_v2.md 2.5参照）。銘柄選択とは独立して取得・更新する
+  const [macroNews, setMacroNews] = useState<NewsInfo[]>([]);
+
+  useEffect(() => {
+    const fetchMacro = () => axios.get(`${API_BASE}/api/macro-news`).then(res => setMacroNews(res.data)).catch(console.error);
+    fetchMacro();
+    const timer = setInterval(fetchMacro, 300000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Toggle Theme
   useEffect(() => {
@@ -236,6 +256,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
       axios.get(`${API_BASE}/api/stocks/${current.code}/summary`).then(res => setSummary(res.data)).catch(console.error),
       axios.get(`${API_BASE}/api/stocks/${current.code}/backtest`).then(res => setBacktest(res.data)).catch(console.error),
       axios.get(`${API_BASE}/api/stocks/${current.code}/chart`).then(res => setChartData(res.data)).catch(console.error),
+      axios.get(`${API_BASE}/api/stocks/${current.code}/fundamentals`).then(res => setFundamentals(res.data)).catch(console.error),
       axios.get(`${API_BASE}/api/stocks/${current.code}/news`).then(res => setNewsList(res.data)).catch(console.error),
       axios.get(`${API_BASE}/api/stocks/${current.code}/docs`).then(res => setDocList(res.data)).catch(console.error),
     ]);
@@ -260,7 +281,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   // （Effect内で直接setStateを呼ぶとカスケードレンダリングになるため避ける）
   const selectStock = (s: StockMaster) => {
     setCurrent(s);
-    setSummary(null); setBacktest(null); setChartData(null); setNewsList([]); setDocList([]);
+    setSummary(null); setBacktest(null); setChartData(null); setFundamentals(null); setNewsList([]); setDocList([]);
     // 画面が狭い（サイドバーと詳細が縦積みになる）場合、銘柄選択後に詳細側まで
     // 自動スクロールする。デスクトップ幅では両方見えているため何もしない。
     if (window.matchMedia('(max-width: 1000px)').matches) {
@@ -449,6 +470,37 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                 </div>
               </section>
 
+              {/* ファンダメンタルズ指標（画面表示用の参考情報。ML特徴量には未使用。REQUIREMENTS_v2.md 2.2参照） */}
+              <section className="card" style={{ padding: 'var(--s5)' }}>
+                <div style={{ fontSize: 'var(--xs)', textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--tf)', fontWeight: 800, marginBottom: 'var(--s3)' }}>ファンダメンタルズ（参考情報）</div>
+                {fundamentals && fundamentals.computed ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--s4)' }}>
+                    <div>
+                      <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>PER</div>
+                      <div className="mono" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>{fundamentals.per != null ? fundamentals.per.toFixed(1) : '---'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>PBR</div>
+                      <div className="mono" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>{fundamentals.pbr != null ? fundamentals.pbr.toFixed(2) : '---'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>配当利回り</div>
+                      <div className="mono" style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>{fundamentals.dividend_yield != null ? `${fundamentals.dividend_yield.toFixed(2)}%` : '---'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)' }}>増益率(参考)</div>
+                      <div className={`mono ${fundamentals.earnings_growth != null && fundamentals.earnings_growth > 0 ? 'pos' : fundamentals.earnings_growth != null && fundamentals.earnings_growth < 0 ? 'neg' : ''}`} style={{ fontWeight: 800, fontSize: 'var(--lg)' }}>
+                        {fundamentals.earnings_growth != null ? `${(fundamentals.earnings_growth * 100).toFixed(1)}%` : '---'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--s4)' }}>
+                    {[0, 1, 2, 3].map(i => <SkeletonBlock key={i} height="2.2rem" />)}
+                  </div>
+                )}
+              </section>
+
               {/* Chart & Backtest Grid */}
               <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(320px, 0.95fr)', gap: 'var(--s4)' }}>
                 {/* 実際の株価チャート (yfinanceからの実データ) */}
@@ -578,6 +630,40 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
                         <div style={{ marginTop: 'var(--s2)', display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap' }}>
                           <span className="pill p-gd">{d.type}</span>
                           <span className="pill p-ok">長期寄与</span>
+                        </div>
+                      </div>
+                      )
+                    ))}
+                  </div>
+                </article>
+              </section>
+
+              {/* マクロ・地政学ニュース（全銘柄共通の参考情報。スコア計算には使わない） */}
+              <section style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 'var(--s4)' }}>
+                <article className="card">
+                  <div style={{ padding: 'var(--s5)', borderBottom: '1px solid var(--dv)' }}>
+                    <div style={{ fontSize: 'var(--base)', fontWeight: 800 }}>市場全体・マクロ要因（参考情報）</div>
+                    <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.2rem' }}>個別銘柄に紐づかない金融政策・為替・地政学リスク等。スコア計算には反映していません</div>
+                  </div>
+                  <div style={{ padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
+                    {macroNews.length === 0 && [0, 1].map(i => <SkeletonBlock key={i} height="4.5rem" />)}
+                    {macroNews.map((n, i) => (
+                      n.source === 'System' ? (
+                        <div key={i} style={{ padding: 'var(--s4)', border: '1px dashed var(--dv)', borderRadius: 'var(--r1)', color: 'var(--tm)' }}>
+                          <div style={{ fontSize: 'var(--sm)', fontWeight: 700 }}>{n.title}</div>
+                          <div style={{ fontSize: 'var(--xs)', marginTop: '.22rem' }}>{n.reason}</div>
+                        </div>
+                      ) : (
+                      <div key={i} style={{ padding: 'var(--s4)', border: '1px solid var(--dv)', borderRadius: 'var(--r1)', background: 'var(--sfo)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'var(--s3)', alignItems: 'flex-start' }}>
+                          <div>
+                            <div style={{ fontSize: 'var(--sm)', fontWeight: 800 }}>{n.title}</div>
+                            <div style={{ fontSize: 'var(--xs)', color: 'var(--tm)', marginTop: '.22rem' }}>{n.reason}</div>
+                            <div style={{ fontSize: 'var(--xs)', marginTop: '.5rem' }}><a href={n.url} target="_blank" rel="noreferrer">AIによるソース元の確認 ↗</a></div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 'var(--s2)', display: 'flex', alignItems: 'center', gap: 'var(--s2)', flexWrap: 'wrap' }}>
+                          <span className="pill p-gd">マクロ要因</span>
                         </div>
                       </div>
                       )

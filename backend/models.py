@@ -66,6 +66,38 @@ class DocItemRow(Base):
     cls: Mapped[str] = mapped_column(String(16))
 
 
+class MacroNewsItemRow(Base):
+    """個別銘柄に紐づかない市場全体・マクロ・地政学ニュース（REQUIREMENTS_v2.md 2.5参照）。
+
+    stock_codeを持たない単一の共有リストとして全銘柄画面から参照される。
+    """
+    __tablename__ = "macro_news_item"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(1024))
+    source: Mapped[str] = mapped_column(String(255))
+    url: Mapped[str] = mapped_column(String(2048))
+    effect: Mapped[str] = mapped_column(String(16))
+    reason: Mapped[str] = mapped_column(String(1024))
+    cls: Mapped[str] = mapped_column(String(16))
+
+
+class FundamentalsRow(Base):
+    """PER・PBR・配当利回り・増収増益率（画面表示用の参考情報。REQUIREMENTS_v2.md 2.2参照）。
+
+    現在時点の値しかyfinanceから無料で取得できず、過去時点ごとの値は遡れないため
+    ML特徴量には組み込めない（学習データに未来情報が混入するリークになるため）。
+    """
+    __tablename__ = "fundamentals"
+
+    stock_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    per: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pbr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dividend_yield: Mapped[float | None] = mapped_column(Float, nullable=True)
+    earnings_growth: Mapped[float | None] = mapped_column(Float, nullable=True)
+    updated_at: Mapped[str] = mapped_column(String(32), default="")
+
+
 class BacktestResultRow(Base):
     __tablename__ = "backtest_result"
 

@@ -117,6 +117,66 @@ def extract_news_facts(code: str, name_ja: str, news_list: List[Dict]) -> List[D
         # ニュース件数分の重複したエラーカードを出さないよう、1件のみ返す
         return [{"fact": fact_msg, "category": "エラー", "title": "AI分析エラー"}]
 
+MACRO_QUERIES = ["日経平均 市場全体", "日本 金融政策 金利", "地政学リスク 日本経済"]
+
+
+def fetch_macro_news() -> List[Dict]:
+    """個別銘柄に紐づかない市場全体・マクロ経済・地政学リスクのニュースを収集する（REQUIREMENTS_v2.md 2.5参照）。"""
+    news_items = []
+    seen_urls = set()
+    for query in MACRO_QUERIES:
+        safe_query = urllib.parse.quote(query)
+        url = f"https://news.google.com/rss/search?q={safe_query}&hl=ja&gl=JP&ceid=JP:ja"
+        d = feedparser.parse(url)
+        for entry in d.entries[:3]:
+            if entry.link in seen_urls:
+                continue
+            seen_urls.add(entry.link)
+            source_title = entry.source.title if hasattr(entry, 'source') else "News"
+            news_items.append({"title": entry.title, "url": entry.link, "source": source_title})
+    return news_items
+
+
+def extract_macro_facts(news_list: List[Dict]) -> List[Dict]:
+    """市場全体・マクロ・地政学ニュースからファクトのみをAIで抽出する（点数評価はしない）。"""
+    if not get_keys():
+        return [{"fact": "AI連動オフ（APIキー未設定）", "category": "エラー", "title": "AI連動オフ"}]
+    if not news_list:
+        return []
+
+    prompt = """
+    あなたはデータ抽出の専門AIです。
+    以下は日本株市場全体に関する直近のニュースヘッドラインです（特定の個別銘柄向けではありません）。
+    これらのニュースから、市場全体・マクロ経済・地政学リスクに関する「事実（ファクト）」を
+    一切の主観や評価を交えずに抽出してください。重要度で選別せず、見つかったファクトはすべて出力してください。
+
+    出力は必ず以下のJSON配列形式としてください:
+    [
+      {
+        "title": "もっとも関連する元のニュースのタイトル",
+        "category": "金融政策, 為替, 地政学, 物価, その他 のいずれか",
+        "fact": "抽出された事実（20文字程度の簡潔な文章）"
+      }
+    ]
+
+    ニュース:
+    """
+    for n in news_list:
+        prompt += f"- {n['title']}\n"
+
+    try:
+        text = call_gemini_with_retry(prompt)
+        return json.loads(text)
+    except Exception as e:
+        error_msg = str(e)
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            fact_msg = "API利用制限超過（無料枠のクォータ上限に達しました。しばらくすると再試行されます）"
+        else:
+            fact_msg = "AI推論エラーが発生しました"
+        print(f"[AI_SERVICE] Macro Extract Error: {error_msg}")
+        return [{"fact": fact_msg, "category": "エラー", "title": "AI分析エラー"}]
+
+
 def extract_docs_facts(code: str, name_ja: str) -> List[Dict]:
     """開示情報等から長期ファクトを抽出する（モックジェネレーター）"""
     if not get_keys():

@@ -106,6 +106,42 @@ def score_news_facts(facts_list: List[Dict], original_news: List[Dict]) -> List[
         })
     return scored_news
 
+def score_macro_facts(facts_list: List[Dict], original_news: List[Dict]) -> List[Dict]:
+    """市場全体・マクロ・地政学ニュースの事実に対する社内評価（判定根拠の補助表示専用。
+
+    スコア計算には使わない。REQUIREMENTS_v2.md 2.5参照）。
+    """
+    scored = []
+    for i, fact_item in enumerate(facts_list):
+        if fact_item.get("category") == "エラー":
+            evaluation = _evaluate_fact("エラー", "")
+            scored.append({
+                "title": "AIによるマクロニュース分析が利用できません",
+                "source": "System",
+                "url": "#",
+                "effect": evaluation["effect"],
+                "reason": fact_item.get("fact", "しばらく経ってから再度ご確認ください"),
+                "cls": evaluation["cls"],
+            })
+            continue
+
+        evaluation = _evaluate_fact(fact_item.get("category", "その他"), fact_item.get("fact", ""))
+        url, source = "#", "News"
+        if original_news and i < len(original_news):
+            url = original_news[i].get("url", "#")
+            source = original_news[i].get("source", "News")
+
+        scored.append({
+            "title": fact_item.get("title", fact_item.get("fact", "マクロニュース")),
+            "source": source,
+            "url": url,
+            "effect": evaluation["effect"],
+            "reason": f"{evaluation['reason']}: {fact_item.get('fact', '')}"[:40] + "...",
+            "cls": evaluation["cls"],
+        })
+    return scored
+
+
 def score_docs_facts(facts_list: List[Dict]) -> List[Dict]:
     """
     Geminiが抽出した開示情報ファクトに対する社内モデル評価

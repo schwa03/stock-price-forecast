@@ -34,6 +34,8 @@ from models import (
     BacktestResultRow,
     ChartDataRow,
     DocItemRow,
+    FundamentalsRow,
+    MacroNewsItemRow,
     NewsItemRow,
     SignalSummaryRow,
     StockMasterRow,
@@ -92,6 +94,14 @@ class ChartResponse(BaseModel):
     prices: List[Optional[float]]
     ma5: List[Optional[float]]
     ma25: List[Optional[float]]
+
+class FundamentalsResponse(BaseModel):
+    code: str
+    per: Optional[float] = None
+    pbr: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    earnings_growth: Optional[float] = None
+    computed: bool = False
 
 # --------- Global State ---------
 # 銘柄マスターは高速な一覧表示のためインメモリにも保持するが、
@@ -242,12 +252,38 @@ async def update_core_score(code: str, name_ja: str):
         final_score = predictor.combine_scores(short_score, long_score)
         final_signal = predictor.classify_signal(final_score)
 
+        # ファンダメンタルズ（PER/PBR/配当利回り/増益率）は画面表示専用の参考情報。
+        # yfinanceでは「現在時点」の値しか取得できず過去に遡れないためML特徴量には
+        # 使わない（REQUIREMENTS_v2.md 2.2参照）。取得失敗してもコアスコア自体は
+        # 継続させたいので、独立したtry/exceptにする
+        fundamentals_values = None
+        try:
+            info = await asyncio.to_thread(lambda: yf.Ticker(ticker).info)
+            dividend_yield = info.get("dividendYield")
+            fundamentals_values = dict(
+                per=info.get("trailingPE"),
+                pbr=info.get("priceToBook"),
+                dividend_yield=(dividend_yield * 100) if isinstance(dividend_yield, (int, float)) else None,
+                earnings_growth=info.get("earningsGrowth"),
+                updated_at=_jst_now_str(),
+            )
+        except Exception as e:
+            print(f"[CORE] {code}: fundamentals fetch failed: {e}")
+
         async with session_scope() as session:
             if chart_row is not None:
                 stmt = pg_insert(ChartDataRow).values(stock_code=code, **chart_row)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=[ChartDataRow.stock_code],
                     set_={k: getattr(stmt.excluded, k) for k in chart_row},
+                )
+                await session.execute(stmt)
+
+            if fundamentals_values is not None:
+                stmt = pg_insert(FundamentalsRow).values(stock_code=code, **fundamentals_values)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[FundamentalsRow.stock_code],
+                    set_=fundamentals_values,
                 )
                 await session.execute(stmt)
 
@@ -320,6 +356,32 @@ async def update_news_and_docs(code: str, name_ja: str):
         print(f"update_news_and_docs failed for {code}:", e)
     finally:
         _NEWS_PROCESSING.discard(code)
+
+
+async def update_macro_news():
+    """個別銘柄に紐づかない市場全体・マクロ・地政学ニュースを収集・分析する。
+
+    スコア計算には一切使わず、判定根拠の補助表示専用（REQUIREMENTS_v2.md 2.5参照、2026-07-21改訂）。
+    全銘柄共通の単一リストのため、銘柄ごとの巡回とは別に低頻度で1回だけ実行すればよい。
+    """
+    try:
+        raw_news = await asyncio.to_thread(ai_service.fetch_macro_news)
+        if not raw_news:
+            return
+        facts = await asyncio.to_thread(ai_service.extract_macro_facts, raw_news)
+        results = internal_ai.score_macro_facts(facts, raw_news)
+
+        async with session_scope() as session:
+            await session.execute(delete(MacroNewsItemRow))
+            session.add_all([
+                MacroNewsItemRow(title=n.get("title", ""), source=n.get("source", ""),
+                                  url=n.get("url", "#"), effect=str(n.get("effect", "0")),
+                                  reason=n.get("reason", ""), cls=n.get("cls", "neu"))
+                for n in results
+            ])
+            await session.commit()
+    except Exception as e:
+        print("update_macro_news failed:", e)
 
 
 async def update_backtest_result(code: str):
@@ -430,6 +492,20 @@ async def autonomous_news_crawler():
         await asyncio.sleep(sleep_duration)
 
 
+async def autonomous_macro_news_crawler():
+    """市場全体・マクロ・地政学ニュースを低頻度で更新するループ。
+
+    銘柄ごとの巡回とは異なり全銘柄共通の単一リストのため、頻繁に回す必要はない。
+    Gemini呼び出しを1回消費するだけだが、銘柄別ニュース巡回と同じクォータを
+    共有するため、控えめな頻度（2時間に1回）に留める。
+    """
+    while True:
+        if ai_service.get_keys():
+            print("[MACRO_NEWS_CRAWLER] Updating macro/geopolitical news...")
+            await update_macro_news()
+        await asyncio.sleep(7200.0)
+
+
 async def autonomous_backtest_crawler():
     """本番と同じルールを過去データに適用し、実際のバックテスト結果を巡回更新するループ。
 
@@ -483,8 +559,10 @@ async def lifespan(app: FastAPI):
     core_crawler_task = asyncio.create_task(autonomous_core_crawler())
     news_crawler_task = asyncio.create_task(autonomous_news_crawler())
     backtest_crawler_task = asyncio.create_task(autonomous_backtest_crawler())
+    macro_news_crawler_task = asyncio.create_task(autonomous_macro_news_crawler())
     updater_task = asyncio.create_task(master_data_updater())
     yield
+    macro_news_crawler_task.cancel()
     core_crawler_task.cancel()
     news_crawler_task.cancel()
     backtest_crawler_task.cancel()
@@ -610,6 +688,20 @@ async def get_stock_news(code: str, session=Depends(get_session)):
         effect="0", reason="しばらく経ってから再度ご確認ください", cls="neu"
     )]
 
+@api.get("/api/macro-news", response_model=List[NewsInfo])
+async def get_macro_news(session=Depends(get_session)):
+    """個別銘柄に紐づかない市場全体・マクロ・地政学ニュース（全銘柄共通、判定根拠の補助表示専用）。"""
+    rows = (await session.execute(select(MacroNewsItemRow))).scalars().all()
+    if rows:
+        return [
+            NewsInfo(title=r.title, source=r.source, url=r.url, effect=r.effect, reason=r.reason, cls=r.cls)
+            for r in rows
+        ]
+    return [NewsInfo(
+        title="マクロ・地政学ニュースを収集中です...", source="System", url="#",
+        effect="0", reason="しばらく経ってから再度ご確認ください", cls="neu"
+    )]
+
 @api.get("/api/stocks/{code}/docs", response_model=List[DocInfo])
 async def get_stock_docs(code: str, session=Depends(get_session)):
     rows = (await session.execute(
@@ -631,6 +723,16 @@ async def get_stock_chart(code: str, session=Depends(get_session)):
     if row:
         return ChartResponse(code=code, labels=row.labels, prices=row.prices, ma5=row.ma5, ma25=row.ma25)
     return ChartResponse(code=code, labels=[], prices=[], ma5=[], ma25=[])
+
+@api.get("/api/stocks/{code}/fundamentals", response_model=FundamentalsResponse)
+async def get_stock_fundamentals(code: str, session=Depends(get_session)):
+    row = await session.get(FundamentalsRow, code)
+    if row:
+        return FundamentalsResponse(
+            code=code, per=row.per, pbr=row.pbr,
+            dividend_yield=row.dividend_yield, earnings_growth=row.earnings_growth, computed=True,
+        )
+    return FundamentalsResponse(code=code, computed=False)
 
 @api.get("/api/stocks/{code}/backtest", response_model=BacktestResult)
 async def get_stock_backtest(code: str, session=Depends(get_session)):
