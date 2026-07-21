@@ -65,6 +65,7 @@ body {
   background: var(--bg);
   color: var(--tx);
   font: var(--base)/1.6 var(--font);
+  overflow-x: hidden;
 }
 
 button, input, select {
@@ -114,6 +115,28 @@ a:hover {
      大きく下に押しやられてしまうため、一覧側の高さを制限しスクロール可能にする */
   .sidebar {
     max-height: 45vh;
+  }
+}
+
+/* チャート＋バックテスト、ニュース＋開示の2カラムグリッド。
+   各カラムに固定のminmax(320px/350px, ...)があり、スマホ幅ではその
+   最小幅を下回れずレイアウト崩れ（横はみ出し）を起こすため、
+   スマホ幅では1カラムに強制する。インラインstyleではメディアクエリで
+   上書きできないため、この2つだけCSSクラス化している */
+.chart-backtest-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.95fr);
+  gap: var(--s4);
+}
+.news-docs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--s4);
+}
+@media (max-width: 700px) {
+  .chart-backtest-grid,
+  .news-docs-grid {
+    grid-template-columns: 1fr;
   }
 }
 

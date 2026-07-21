@@ -347,7 +347,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="app">
       {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--s3) var(--s6)', borderBottom: '1px solid var(--dv)', background: 'color-mix(in oklab, var(--bg) 88%, transparent)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 20 }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--s3)', padding: 'var(--s3) var(--s6)', borderBottom: '1px solid var(--dv)', background: 'color-mix(in oklab, var(--bg) 88%, transparent)', backdropFilter: 'blur(10px)', position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s3)', fontWeight: 800 }}>
           <Activity size={30} color="var(--pr)" />
           <div>
@@ -502,7 +502,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               </section>
 
               {/* Chart & Backtest Grid */}
-              <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(320px, 0.95fr)', gap: 'var(--s4)' }}>
+              <section className="chart-backtest-grid">
                 {/* 実際の株価チャート (yfinanceからの実データ) */}
                 <article className="card">
                   <div style={{ padding: 'var(--s5)', borderBottom: '1px solid var(--dv)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s2)' }}>
@@ -570,7 +570,7 @@ function AuthenticatedApp({ onLogout }: { onLogout: () => void }) {
               </section>
 
               {/* News & Documents (Bottom Cards) */}
-              <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 'var(--s4)' }}>
+              <section className="news-docs-grid">
                 <article className="card">
                   <div style={{ padding: 'var(--s5)', borderBottom: '1px solid var(--dv)' }}>
                     <div style={{ fontSize: 'var(--base)', fontWeight: 800 }}>ニュース寄与度 (AI推論)</div>
