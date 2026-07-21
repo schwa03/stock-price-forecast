@@ -1,56 +1,42 @@
 # c:/Stock_Price_Forecast/backend/internal_ai.py
 
-import random
 from typing import Dict, List
+
+# 判定根拠一覧の「寄与度(pt)」表示専用のキーワード辞書。
+# スコア計算(predictor.py)には一切使わない、あくまで補助表示の演出。
+# 2026-07-21改訂: 従来はキーワード一致時にランダムな大きさを足していたが、
+# 同じ入力でも表示のたびに数値が変わってしまい紛らわしいため、
+# 一致したキーワード数に基づく決定的な計算に変更した。
+POSITIVE_KEYWORDS = ["上方修正", "増益", "買収", "自社株買い", "黒字", "提携", "好調", "新製品", "配当", "増配"]
+NEGATIVE_KEYWORDS = ["下方修正", "減益", "赤字", "不祥事", "訴訟", "遅延", "延期", "売却", "解約", "悪化"]
+KEYWORD_WEIGHT = 4
+MAX_EFFECT = 8
 
 
 def _evaluate_fact(category: str, fact_text: str) -> dict:
     """
-    自社AIモック:
-    抽出された事実から、スコア影響度（effect）、判断理由（reason）、ポジネガクラス（cls）を算出。
-    ※本番環境では、ここに過去データによる機械学習モデル（XGBoost/LightGBM）を組み込みます。
+    抽出された事実から、判定根拠一覧に表示する寄与度（effect）・理由（reason）・
+    ポジネガクラス（cls）を算出する。キーワード辞書による決定的なルールベースであり、
+    予測スコア自体（predictor.py）には使わない補助表示専用。
     """
     # Gemini呼び出し自体が失敗した場合（クォータ超過等）の「事実」は、実際の分析結果ではないため、
-    # 通常のキーワード/ランダム評価にかけず、意味のない点数がついて見えないようにする
+    # 通常のキーワード評価にかけず、意味のない点数がついて見えないようにする
     if category == "エラー":
         return {"effect": "0", "reason": "AI分析が利用できません", "cls": "neu"}
 
-    # 簡易ルールベース ＋ ランダム（モック）のハイブリッド
-    positive_keywords = ["上方修正", "増益", "買収", "自社株買い", "黒字", "提携", "好調", "新製品", "配当", "増配"]
-    negative_keywords = ["下方修正", "減益", "赤字", "不祥事", "訴訟", "遅延", "延期", "売却", "解約", "悪化"]
-    
-    score = 0
-    reason_prefix = ""
-    
-    # 1. ルールベース判定
-    for pk in positive_keywords:
-        if pk in fact_text:
-            score += random.randint(3, 8)
-            reason_prefix = "好感触な事実（社内AI判定）"
-            break
-            
-    for nk in negative_keywords:
-        if nk in fact_text:
-            score -= random.randint(3, 8)
-            reason_prefix = "懸念される事実（社内AI判定）"
-            break
-            
-    # 2. キーワードがない場合はカテゴリベースの微細なランダム（MLモック）
-    if score == 0:
-        if category == "財務":
-            score = random.randint(-4, 4)
-            reason_prefix = "財務状況の統計予測"
-        elif category == "マクロ":
-            score = random.randint(-2, 2)
-            reason_prefix = "マクロ環境の影響予測"
-        elif category == "製品":
-            score = random.randint(-1, 5)
-            reason_prefix = "製品力の評価"
-        else:
-            score = random.randint(-3, 3)
-            reason_prefix = "過去統計によるニュートラル判定"
-            
-    # スコアの丸めとクラス分け
+    matched_positive = [kw for kw in POSITIVE_KEYWORDS if kw in fact_text]
+    matched_negative = [kw for kw in NEGATIVE_KEYWORDS if kw in fact_text]
+    score = max(-MAX_EFFECT, min(MAX_EFFECT, (len(matched_positive) - len(matched_negative)) * KEYWORD_WEIGHT))
+
+    if matched_positive and not matched_negative:
+        reason_prefix = f"好材料キーワードを検出（{matched_positive[0]}）"
+    elif matched_negative and not matched_positive:
+        reason_prefix = f"懸念材料キーワードを検出（{matched_negative[0]}）"
+    elif matched_positive and matched_negative:
+        reason_prefix = "好材料・懸念材料が混在"
+    else:
+        reason_prefix = "該当キーワードなし（中立判定）"
+
     if score > 0:
         cls_val = "pos"
         effect_str = f"+{score}"
@@ -60,7 +46,7 @@ def _evaluate_fact(category: str, fact_text: str) -> dict:
     else:
         cls_val = "neu"
         effect_str = "0"
-        
+
     return {
         "effect": effect_str,
         "reason": reason_prefix,
