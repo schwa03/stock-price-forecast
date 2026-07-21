@@ -27,7 +27,13 @@ class _SignalStrategy(Strategy):
     """
 
     def init(self):
-        self.signal = self.data.Signal
+        # self.I()を通さずself.data.Signalを直接参照すると、backtesting.pyの
+        # 内部ループが列を日次インデックスに合わせて切り詰めてくれず、
+        # signal[-1]が常に「データ全体の最終日」の値を返し続けてしまう
+        # （＝実質1つの定数シグナルで全期間を判定してしまうバグになる）。
+        # self.I()でラップすることで、他の組み込みOHLCV列と同様に
+        # 「現在の日までのシグナル」として正しく日次インデックスされる。
+        self.signal = self.I(lambda: self.data.Signal, name="signal")
 
     def next(self):
         if self.signal[-1] == 1 and not self.position:
