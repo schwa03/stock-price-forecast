@@ -40,9 +40,7 @@ ChartJS.register(
 
 interface RankingResponse {
   top_buy: SignalSummary[];
-  bottom_buy: SignalSummary[];
   top_sell: SignalSummary[];
-  bottom_sell: SignalSummary[];
 }
 
 interface StockMaster {
@@ -222,7 +220,7 @@ function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; st
           {termTabs}
         </div>
         <div style={{ display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap' }}>
-          {[0, 1, 2, 3].map(i => (
+          {[0, 1].map(i => (
             <div key={i} className="card" style={{ flex: 1, minWidth: '300px', padding: 'var(--s5)', display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
               <SkeletonBlock width="60%" height="1.2rem" />
               {[0, 1, 2, 3, 4].map(j => <SkeletonBlock key={j} height="2.2rem" />)}
@@ -235,7 +233,7 @@ function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; st
 
   // 表示中の銘柄のうち最も更新が古いもの（＝この推奨がいつ時点のデータに基づくか）を求める。
   // updated_atは"YYYY-MM-DD HH:MM:SS"形式の文字列で、この形式は文字列比較がそのまま時系列順になる
-  const allShown = [...ranking.top_buy, ...ranking.bottom_sell, ...ranking.top_sell, ...ranking.bottom_buy];
+  const allShown = [...ranking.top_buy, ...ranking.top_sell];
   const oldestUpdatedAt = allShown.reduce<string | null>((oldest, s) => {
     if (!s.updated_at) return oldest;
     if (!oldest || s.updated_at < oldest) return s.updated_at;
@@ -287,13 +285,9 @@ function DashboardView({ onSelect, stocks }: { onSelect: (c: string) => void; st
         </p>
       )}
 
-      <div style={{display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap', marginBottom: 'var(--s4)'}}>
-        {renderList("📈 買うべき銘柄 5選", ranking.top_buy)}
-        {renderList("📉 売るべきでない銘柄 5選 (反発期待)", ranking.bottom_sell)}
-      </div>
       <div style={{display: 'flex', gap: 'var(--s4)', flexWrap: 'wrap'}}>
-        {renderList("📉 売るべき銘柄 5選", ranking.top_sell)}
-        {renderList("🛑 買うべきでない銘柄 5選 (高リスク)", ranking.bottom_buy)}
+        {renderList("📈 買うべき銘柄 TOP5", ranking.top_buy)}
+        {renderList("📉 売るべき銘柄 TOP5", ranking.top_sell)}
       </div>
     </div>
   );

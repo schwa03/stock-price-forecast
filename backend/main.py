@@ -59,10 +59,12 @@ class SignalSummary(BaseModel):
     updated_at: str = ""
 
 class RankingResponse(BaseModel):
+    # 2026-07-21改訂: 元々はbottom_buy/bottom_sellも返していたが、
+    # bottom_sell=top_buy・bottom_buy=top_sellと同一リストを別ラベルで
+    # 表示していただけで、4つに分ける意味がなく「全部同じに見える」との
+    # 指摘を受けて撤廃した。買い/売りTOP5の2種類のみを返す
     top_buy: List[SignalSummary]
-    bottom_buy: List[SignalSummary]
     top_sell: List[SignalSummary]
-    bottom_sell: List[SignalSummary]  # buy / neutral / sell
 
 class NewsInfo(BaseModel):
     title: str
@@ -853,17 +855,7 @@ async def get_recommendations(term: str = "medium", session=Depends(get_session)
     # 売るべきランキング（スコア下位）- ascending order
     top_sell = sorted(valid_stocks, key=score_key, reverse=False)[:5]
 
-    # ワースト評価（買うべきでない＝実質売るべき銘柄、売るべきでない＝実質買うべき銘柄と同義だが
-    # フロントで使い分け可能にしている）
-    bottom_buy = top_sell
-    bottom_sell = top_buy
-
-    return RankingResponse(
-        top_buy=top_buy,
-        bottom_buy=bottom_buy,
-        top_sell=top_sell,
-        bottom_sell=bottom_sell
-    )
+    return RankingResponse(top_buy=top_buy, top_sell=top_sell)
 
 app.include_router(api)
 
